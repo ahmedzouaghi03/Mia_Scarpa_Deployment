@@ -9,8 +9,7 @@
     "UPLOADTHING_REGIONS",
     "JWT_SECRET",
     "CONTACT_RECIPIENT",
-    "NEXT_PUBLIC_APP_URL",
-    "IMGBB_API_KEY"
+    "NEXT_PUBLIC_APP_URL"
   ],
   "tasks": {
     "build": {

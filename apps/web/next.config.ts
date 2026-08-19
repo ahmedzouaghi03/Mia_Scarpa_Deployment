@@ -14,7 +14,9 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       { protocol: "https", hostname: "utfs.io", pathname: "/**" },
+      { protocol: "https", hostname: "*.utfs.io", pathname: "/**" },
       { protocol: "https", hostname: "ufs.sh", pathname: "/**" },
+      { protocol: "https", hostname: "*.ufs.sh", pathname: "/**" },
       { protocol: "https", hostname: "i.ibb.co", pathname: "/**" },
     ],
     unoptimized: process.env.NODE_ENV === "development",
@@ -26,7 +28,6 @@ const nextConfig: NextConfig = {
     if (isServer) {
       config.plugins.push(new PrismaPlugin());
     }
-    config.externals.push("bufferutil", "utf-8-validate");
     return config;
   },
 };

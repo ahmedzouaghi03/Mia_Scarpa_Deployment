@@ -76,6 +76,7 @@ model Category {
   slug        String   @unique
   description String?
   image       String?
+  gender      Gender   @default(MEN)
   order       Int      @default(0)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -90,6 +91,7 @@ model Category {
   @@index([slug])
   @@index([isActive])
   @@index([parentId])
+  @@index([gender])
 }
 
 model Product {
@@ -287,6 +289,8 @@ model StoreSettings {
   contactPhone        String? @default("+216 XX XXX XXX")
   contactLocation     String? @default("Tunisia")
   contactResponseTime String? @default("Within 24 hours")
+
+  homepageFeaturedProductIds String[] @default([])
 
   updatedAt DateTime @updatedAt
 
