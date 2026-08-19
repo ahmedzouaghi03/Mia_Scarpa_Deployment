@@ -5,6 +5,7 @@ import { PrismaPlugin } from "@prisma/nextjs-monorepo-workaround-plugin";
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["ws", "@neondatabase/serverless"],
   env: {
     UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
     UPLOADTHING_APP_ID: process.env.UPLOADTHING_APP_ID,
