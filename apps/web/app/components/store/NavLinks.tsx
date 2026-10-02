@@ -153,27 +153,42 @@ export function NavLinks({
   vertical = false,
   menCategoryTree = [],
   womenCategoryTree = [],
+  enfantCategoryTree = [],
 }: {
   vertical?: boolean;
   menCategoryTree?: CategoryNode[];
   womenCategoryTree?: CategoryNode[];
+  enfantCategoryTree?: CategoryNode[];
 }) {
   const pathname = usePathname();
-  const gender = useSearchParams().get("gender");
+  const searchParams = useSearchParams();
+  const gender = searchParams.get("gender");
+  const promo = searchParams.get("promo");
+  const promoActive = pathname === "/shop" && (promo === "1" || promo === "true");
   const t = useTranslations("Nav");
 
   const GENDER_LINKS = [
     { href: "/shop?gender=men", label: t("Men"), categories: menCategoryTree },
     { href: "/shop?gender=women", label: t("Women"), categories: womenCategoryTree },
+    { href: "/shop?gender=enfant", label: t("Enfant"), categories: enfantCategoryTree },
   ];
   const OTHER_LINKS = [
-    { href: "/about", label: t("About") },
     { href: "/contact", label: t("Contact") },
   ];
 
   if (vertical) {
     return (
       <div className="flex flex-col gap-1">
+        <Link
+          href="/"
+          className={`px-4 py-3 text-sm font-semibold uppercase tracking-widest transition-colors duration-150 ${
+            isActive(pathname, gender, "/")
+              ? "text-[var(--color-text)]"
+              : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
+          }`}
+        >
+          {t("Home")}
+        </Link>
         {GENDER_LINKS.map(({ href, label, categories }) => (
           <VerticalGenderItem
             key={href}
@@ -183,6 +198,14 @@ export function NavLinks({
             categories={categories}
           />
         ))}
+        <Link
+          href="/shop?promo=1"
+          className={`px-4 py-3 text-sm font-semibold uppercase tracking-widest text-[var(--color-promo)] transition-colors duration-150 ${
+            promoActive ? "underline underline-offset-4" : ""
+          }`}
+        >
+          {t("Promotions")}
+        </Link>
         {OTHER_LINKS.map(({ href, label }) => (
           <Link
             key={href}
@@ -201,7 +224,17 @@ export function NavLinks({
   }
 
   return (
-    <div className="flex items-center gap-8">
+    <div className="flex items-center gap-10 lg:gap-12">
+      <Link
+        href="/"
+        className={`${linkClass} ${
+          isActive(pathname, gender, "/")
+            ? "text-[var(--color-text)] after:w-full"
+            : "text-[var(--color-muted)] after:w-0 hover:text-[var(--color-text)] hover:after:w-full"
+        }`}
+      >
+        {t("Home")}
+      </Link>
       {GENDER_LINKS.map(({ href, label, categories }) => (
         <GenderMenuItem
           key={href}
@@ -211,6 +244,12 @@ export function NavLinks({
           categories={categories}
         />
       ))}
+      <Link
+        href="/shop?promo=1"
+        className={`${linkClass} text-[var(--color-promo)] ${promoActive ? "after:w-full" : "after:w-0 hover:after:w-full"}`}
+      >
+        {t("Promotions")}
+      </Link>
       {OTHER_LINKS.map(({ href, label }) => {
         const active = isActive(pathname, gender, href);
         return (

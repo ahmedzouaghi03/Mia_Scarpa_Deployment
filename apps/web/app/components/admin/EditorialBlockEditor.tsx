@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { Loader2, CheckCircle2, ImageIcon } from "lucide-react";
 import { saveEditorialSettings } from "@/actions/storeSettingsActions";
-import Uploader from "./Uploader";
+import CroppedImageUploader from "./CroppedImageUploader";
 import { Field, SaveButton, inp } from "./HeroTextEditor";
+import { useTranslations } from "next-intl";
 import type { EditorialBlock } from "@/types";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextChange, onImageChange }: Props) {
+  const t = useTranslations("Admin");
   const [form, setForm] = useState(initial);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -43,7 +45,7 @@ export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextCh
           : { editorialLabel2: form.label, editorialTitle2: form.title, editorialDesc2: form.desc },
       );
       if (res.success) setSaved(true);
-      else setError(res.error ?? "Failed to save");
+      else setError(res.error ?? t("FailedToSave"));
     });
   }
 
@@ -62,7 +64,7 @@ export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextCh
         setUploadSuccess(true);
         onImageChange?.(uploaded);
       } else {
-        setUploadError(result.error ?? "Failed to save photo");
+        setUploadError(result.error ?? t("FailedToSavePhoto"));
       }
     });
   }
@@ -73,7 +75,7 @@ export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextCh
       <div className="max-w-lg space-y-3">
         <div
           className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)]"
-          style={{ aspectRatio: "4/5", maxHeight: 320 }}
+          style={{ aspectRatio: "1/1", maxHeight: 320 }}
         >
           {imageUrl && !imgFailed ? (
             <img
@@ -103,9 +105,10 @@ export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextCh
         {uploadError && (
           <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</p>
         )}
-        <Uploader
+        <CroppedImageUploader
           endpoint="storeImage"
-          buttonText={imageUrl ? "Upload New Photo" : "Upload Photo"}
+          aspect={1}
+          buttonText={imageUrl ? t("UploadNewPhoto") : t("UploadPhoto")}
           handleUploadComplete={handleUploadComplete}
         />
       </div>
@@ -115,11 +118,11 @@ export function EditorialBlockEditor({ block, initial, initialImageUrl, onTextCh
         <Field label="Label (eyebrow)">
           <input value={form.label} onChange={(e) => set("label", e.target.value)} className={inp} />
         </Field>
-        <Field label="Title">
+        <Field label={t("FieldTitle")}>
           <input value={form.title} onChange={(e) => set("title", e.target.value)} className={inp} />
         </Field>
       </div>
-      <Field label="Description">
+      <Field label={t("FieldDescription")}>
         <textarea rows={3} value={form.desc} onChange={(e) => set("desc", e.target.value)} className={inp} />
       </Field>
       {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}

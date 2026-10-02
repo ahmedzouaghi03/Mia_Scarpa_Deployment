@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { Loader2, CheckCircle2, ImageIcon } from "lucide-react";
 import { saveFeaturedSettings } from "@/actions/storeSettingsActions";
-import Uploader from "./Uploader";
+import { useTranslations } from "next-intl";
+import CroppedImageUploader from "./CroppedImageUploader";
 import { SaveButton } from "./HeroTextEditor";
 import type { FeaturedOverlay } from "@/types";
 
@@ -20,6 +21,7 @@ export function FeaturedPhotoUpload({
   onUploaded,
   onOverlayChange,
 }: Props) {
+  const t = useTranslations("Admin");
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
   const [imgFailed, setImgFailed] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -44,7 +46,7 @@ export function FeaturedPhotoUpload({
         setUploadSuccess(true);
         onUploaded?.(uploaded);
       } else {
-        setUploadError(result.error ?? "Failed to save photo");
+        setUploadError(result.error ?? t("FailedToSavePhoto"));
       }
     });
   }
@@ -65,7 +67,7 @@ export function FeaturedPhotoUpload({
         featuredOverlayCollection: overlay.collection,
       });
       if (res.success) setSaved(true);
-      else setSaveError(res.error ?? "Failed to save");
+      else setSaveError(res.error ?? t("FailedToSave"));
     });
   }
 
@@ -78,7 +80,7 @@ export function FeaturedPhotoUpload({
       <div className="max-w-lg space-y-4">
         <div
           className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)]"
-          style={{ aspectRatio: "4/5", maxHeight: 420 }}
+          style={{ aspectRatio: "1/1", maxHeight: 420 }}
         >
           {imageUrl && !imgFailed ? (
             <img
@@ -117,13 +119,14 @@ export function FeaturedPhotoUpload({
           <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</p>
         )}
 
-        <Uploader
+        <CroppedImageUploader
           endpoint="storeImage"
-          buttonText={imageUrl ? "Upload New Photo" : "Upload Photo"}
+          aspect={1}
+          buttonText={imageUrl ? t("UploadNewPhoto") : t("UploadPhoto")}
           handleUploadComplete={handleUploadComplete}
         />
         <p className="text-xs text-[var(--color-muted)]">
-          This is the photo shown next to the featured products, right below the hero. Recommended: portrait format (4:5).
+          This is the photo shown next to the featured products, right below the hero. Shown as a square — crop it to fit after uploading.
         </p>
       </div>
 

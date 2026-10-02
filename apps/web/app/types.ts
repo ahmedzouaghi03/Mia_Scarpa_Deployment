@@ -14,7 +14,25 @@ export type ColorImage = {
   sizes: SizeStock[];  // per-color stock per size
 };
 
-export type Gender = "MEN" | "WOMEN";
+export type Gender = "MEN" | "WOMEN" | "ENFANT";
+
+// ─── SEO fields — shared by Product, Category, and their admin forms ──────────
+// All optional. Left empty, the public pages auto-generate title/description/
+// image from the entity's own name, description, and main photo.
+
+export type SeoFields = {
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoKeywords: string | null;
+  ogImage: string | null;
+};
+
+export type SeoFieldsInput = {
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
+  ogImage?: string;
+};
 
 export type AdminProductDetail = {
   id: string;
@@ -27,6 +45,21 @@ export type AdminProductDetail = {
   isFeatured: boolean;
   gender: Gender;
   categoryId: string | null;
+  promoActive: boolean;
+  promoPriceCents: number | null;
+  promoLabel: string | null;
+  promoImage: string | null;
+  promoStartsAt: string | null;
+  promoEndsAt: string | null;
+} & SeoFields;
+
+export type PromoInput = {
+  promoActive: boolean;
+  promoPriceCents: number | null;
+  promoLabel: string | null;
+  promoImage: string | null;
+  promoStartsAt: string | null; // ISO date or null
+  promoEndsAt: string | null;
 };
 
 export type ProductInput = {
@@ -38,7 +71,7 @@ export type ProductInput = {
   isFeatured: boolean;
   gender: Gender;
   categoryId: string | null;
-};
+} & SeoFieldsInput & PromoInput;
 
 export type CategoryNode = {
   id: string;
@@ -131,7 +164,32 @@ export type SerializedProduct = {
   colors: SerializedProductColor[];
   createdAt: string;
   updatedAt: string;
-};
+
+  // ── Promotion ──
+  promoActive: boolean;
+  promoPrice: number | null;
+  promoLabel: string | null;
+  promoImage: string | null;
+  promoStartsAt: string | null;
+  promoEndsAt: string | null;
+  /** promo toggled on, priced lower AND inside its date window right now */
+  promoLive: boolean;
+  /** what the customer pays now — promoPrice when live, else basePrice */
+  effectivePrice: number;
+  /** rounded discount %, 0 when no live promo */
+  promoPercent: number;
+} & SeoFields;
+
+// ─── Public category SEO lookup (used for /shop?category= metadata) ──────────
+
+export type SeoCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image: string | null;
+  gender: Gender;
+} & SeoFields;
 
 // ─── Order types ──────────────────────────────────────────────────────────────
 
@@ -280,6 +338,7 @@ export type SerializedStoreSettings = {
   shopCoverImage: string | null;
   menCoverImage: string | null;
   womenCoverImage: string | null;
+  enfantCoverImage: string | null;
   featuredImage: string | null;
   featuredOverlayLabel: string | null;
   featuredOverlayYear: string | null;
@@ -303,8 +362,39 @@ export type SerializedStoreSettings = {
   contactPhone: string | null;
   contactLocation: string | null;
   contactResponseTime: string | null;
+  contactCoverImage: string | null;
+  promoBadgeImage: string | null;
   usps: StoreUspItem[];
   homepageFeaturedProductIds: string[];
+
+  // ── SEO & Référencement ──────────────────────────────────────────────────
+  orgName: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoKeywords: string | null;
+  seoCanonicalUrl: string | null;
+  seoOgTitle: string | null;
+  seoOgDescription: string | null;
+  seoOgImage: string | null;
+  seoTwitterTitle: string | null;
+  seoTwitterDescription: string | null;
+  seoTwitterImage: string | null;
+  seoIndexingEnabled: boolean;
+};
+
+export type SeoSettingsInput = {
+  orgName: string;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  seoCanonicalUrl: string;
+  seoOgTitle: string;
+  seoOgDescription: string;
+  seoOgImage: string;
+  seoTwitterTitle: string;
+  seoTwitterDescription: string;
+  seoTwitterImage: string;
+  seoIndexingEnabled: boolean;
 };
 
 export type ContactInfo = {

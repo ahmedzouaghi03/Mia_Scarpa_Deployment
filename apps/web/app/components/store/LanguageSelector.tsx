@@ -2,37 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { Globe } from "lucide-react";
 import { changeLocaleAction } from "@/actions/localeAction";
 
 type Language = {
   code: string;
   name: string;
   nativeName: string;
-  countryCode: string;
 };
 
 const LANGUAGES: Language[] = [
-  { code: "en", name: "English", nativeName: "English", countryCode: "us" },
-  { code: "fr", name: "French",  nativeName: "Français", countryCode: "fr" },
-  { code: "ar", name: "Arabic",  nativeName: "العربية",  countryCode: "tn" },
+  { code: "fr", name: "French",  nativeName: "Français" },
+  { code: "en", name: "English", nativeName: "English" },
+  { code: "ar", name: "Arabic",  nativeName: "العربية" },
 ];
-
-const CDN_SIZES = [20, 40, 80, 160, 320];
-function cdnWidth(displaySize: number) {
-  return CDN_SIZES.find((w) => w >= displaySize * 2) ?? 80;
-}
-
-function FlagImg({ countryCode, size = 24 }: { countryCode: string; size?: number }) {
-  return (
-    <img
-      src={`https://flagcdn.com/w${cdnWidth(size)}/${countryCode}.png`}
-      width={size}
-      height={Math.round(size * 0.67)}
-      alt={countryCode.toUpperCase()}
-      className="rounded-sm object-cover shadow-sm"
-    />
-  );
-}
 
 export function LanguageSelector() {
   const activeLocale = useLocale();
@@ -65,16 +48,16 @@ export function LanguageSelector() {
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm font-semibold text-[var(--color-text)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5"
+        className="flex items-center gap-1.5 text-[var(--color-text)] transition hover:text-[var(--color-muted)]"
         aria-label="Select language"
         aria-expanded={isOpen}
       >
-        <FlagImg countryCode={selected.countryCode} size={20} />
-        <span className="hidden sm:block uppercase tracking-wide text-xs">{selected.code}</span>
+        <Globe size={20} strokeWidth={1.5} />
+        <span className="hidden sm:block uppercase tracking-wide text-xs font-medium">{selected.code}</span>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-52 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-lg z-50">
+        <div className="animate-ui-slide-down absolute right-0 top-full mt-3 w-52 overflow-hidden border border-[var(--color-border)] bg-white shadow-lg z-50">
           <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--color-muted)]">
               {t("Label")}
@@ -94,8 +77,8 @@ export function LanguageSelector() {
                       : "hover:bg-[var(--color-bg)]"
                   }`}
                 >
-                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden">
-                    <FlagImg countryCode={lang.countryCode} size={36} />
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[var(--color-border)] bg-[var(--color-bg)]">
+                    <Globe className={`h-4 w-4 ${isSelected ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]"}`} />
                   </span>
                   <div className="flex-1">
                     <p className={`text-sm font-semibold ${isSelected ? "text-[var(--color-accent)]" : "text-[var(--color-text)]"}`}>

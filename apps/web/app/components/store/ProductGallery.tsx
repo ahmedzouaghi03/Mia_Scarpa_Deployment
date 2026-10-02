@@ -34,14 +34,18 @@ export function ProductGallery({ colors, productName, mainImages = [], selectedC
   return (
     <div className="space-y-3">
       {/* Main image */}
-      <div className="relative aspect-square overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)]">
+      <div className="relative aspect-square overflow-hidden bg-[var(--color-bg)]">
         {mainSrc ? (
-          <img
-            key={mainSrc}
-            src={mainSrc}
-            alt={selectedColor ? `${productName} — ${selectedColor.name}` : productName}
-            className="h-full w-full object-cover"
-          />
+          <>
+            {/* shimmer sits behind — the image paints over it once decoded */}
+            <span aria-hidden className="img-shimmer absolute inset-0 block" />
+            <img
+              key={mainSrc}
+              src={mainSrc}
+              alt={selectedColor ? `${productName} — ${selectedColor.name}` : productName}
+              className="relative h-full w-full object-cover"
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
             No photo
@@ -49,7 +53,7 @@ export function ProductGallery({ colors, productName, mainImages = [], selectedC
         )}
 
         {selectedColor && (
-          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 backdrop-blur-sm">
+          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/50 px-3 py-1 backdrop-blur-sm">
             {selectedColor.hex && (
               <div
                 className="h-3 w-3 rounded-full border border-white/40"
@@ -68,9 +72,9 @@ export function ProductGallery({ colors, productName, mainImages = [], selectedC
             <button
               key={src + i}
               onClick={() => setActiveIndex(i)}
-              className={`aspect-square overflow-hidden rounded-xl border-2 transition ${
+              className={`aspect-square overflow-hidden border-2 transition ${
                 activeIndex === i
-                  ? "border-[var(--color-accent)] shadow-sm"
+                  ? "border-[var(--color-accent)]"
                   : "border-[var(--color-border)] hover:border-[var(--color-green-light)]"
               }`}
             >

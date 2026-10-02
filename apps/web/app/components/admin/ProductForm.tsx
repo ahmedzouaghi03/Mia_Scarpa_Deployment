@@ -2,10 +2,15 @@
 
 import { useState, useTransition, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Loader2, Link as LinkIcon, Upload, Copy, Images } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Plus, X, Loader2, Link as LinkIcon, Upload, Copy, Images, Check, Save } from "lucide-react";
 
 import { createProduct, updateProduct } from "@/actions/adminActions";
+import { createCategory } from "@/actions/categoryActions";
+import { CategorySelect } from "./CategorySelect";
 import { ImagePickerModal } from "./ImagePickerModal";
+import { SeoFieldsEditor, EMPTY_SEO_FIELDS, type SeoFieldsValue } from "./SeoFieldsEditor";
+import { generateSeoFields } from "@/lib/seoAutofill";
 import type { AdminProductDetail, CategoryNode, Gender } from "@/types";
 
 function flattenCategories(
@@ -19,6 +24,17 @@ function flattenCategories(
       { id: n.id, label: `${"— ".repeat(depth)}${n.name}` },
       ...flattenCategories(n.children, gender, depth + 1),
     ]);
+}
+
+// Immutably drop a freshly-created category into the local tree so the <select>
+// picks it up without a full page reload.
+function insertCategoryNode(nodes: CategoryNode[], node: CategoryNode): CategoryNode[] {
+  if (!node.parentId) return [...nodes, node];
+  return nodes.map((n) =>
+    n.id === node.parentId
+      ? { ...n, children: [...n.children, node] }
+      : { ...n, children: insertCategoryNode(n.children, node) },
+  );
 }
 
 type SizeEntry = { size: string; stock: number };
@@ -108,6 +124,38 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Saves the whole product right where the admin is scrolled to, so they never
+// have to jump down to the button at the bottom of the page. All of these
+// trigger the same save (the product is one record) and stay on the page.
+function SectionSaveButton({
+  submitting,
+  saved,
+  onClick,
+}: {
+  submitting: boolean;
+  saved: boolean;
+  onClick: () => void;
+}) {
+  const t = useTranslations("Admin");
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={submitting}
+      className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-white px-4 py-2.5 text-xs font-bold text-[var(--color-text)] transition hover:bg-[var(--color-bg)] disabled:opacity-60"
+    >
+      {submitting ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : saved ? (
+        <Check className="h-3.5 w-3.5 text-emerald-600" />
+      ) : (
+        <Save className="h-3.5 w-3.5" />
+      )}
+      {submitting ? t("Saving") : saved ? t("SavedExcl") : t("SaveChanges")}
+    </button>
+  );
+}
+
 // ── Per-color sizes+stock editor ──────────────────────────────────────────────
 function SizesEditor({
   sizes,
@@ -124,10 +172,11 @@ function SizesEditor({
   onStockChange: (size: string, stock: number) => void;
   onRemoveSize: (size: string) => void;
 }) {
+  const t = useTranslations("Admin");
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">
-        Sizes &amp; Stock
+        {t("SecSizesStock")}
       </p>
 
       {sizes.length > 0 && (
@@ -174,7 +223,7 @@ function SizesEditor({
               onAddSize();
             }
           }}
-          placeholder="Size (e.g. 39, 40, 41…) then Enter"
+          placeholder={t("PhSize")}
           className={`${inp} min-w-0 py-2 text-xs flex-1`}
         />
         <button
@@ -183,11 +232,11 @@ function SizesEditor({
           disabled={!sizeInput.trim()}
           className="shrink-0 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-text)] hover:bg-[var(--color-bg)] transition disabled:opacity-40"
         >
-          Add
+          {t("Add")}
         </button>
       </div>
       {sizes.length === 0 && (
-        <p className="text-xs text-amber-600">⚠ Add at least one size with stock to make this color available.</p>
+        <p className="text-xs text-amber-600">{t("SizeWarnEmpty")}</p>
       )}
     </div>
   );
@@ -196,13 +245,23 @@ function SizesEditor({
 // ── Main form ─────────────────────────────────────────────────────────────────
 export function ProductForm({
   initialData,
-  categoryTree = [],
+  categoryTree: initialCategoryTree = [],
 }: {
   initialData?: AdminProductDetail;
   categoryTree?: CategoryNode[];
 }) {
   const router = useRouter();
+  const t = useTranslations("Admin");
   const [, startTransition] = useTransition();
+
+  // Local copy of the category tree so a category created inline shows up in the
+  // picker immediately, without leaving the product form.
+  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>(initialCategoryTree);
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryParent, setNewCategoryParent] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryError, setNewCategoryError] = useState("");
 
   const [name, setName]     = useState(initialData?.name ?? "");
   const [price, setPrice]   = useState(initialData ? String(initialData.priceCents / 100) : "");
@@ -210,9 +269,34 @@ export function ProductForm({
   const [categoryId, setCategoryId] = useState<string>(initialData?.categoryId ?? "");
   const [isPublished, setIsPublished] = useState(initialData?.isPublished ?? true);
   const [isFeatured, setIsFeatured]   = useState(initialData?.isFeatured ?? false);
+
+  // ── Promotion ──
+  const [promoActive, setPromoActive] = useState(initialData?.promoActive ?? false);
+  const [promoPrice, setPromoPrice]   = useState(
+    initialData?.promoPriceCents != null ? String(initialData.promoPriceCents / 100) : "",
+  );
+  const [promoLabel, setPromoLabel]   = useState(initialData?.promoLabel ?? "");
+  const [promoImage, setPromoImage]   = useState(initialData?.promoImage ?? "");
+  const [promoStartsAt, setPromoStartsAt] = useState(
+    initialData?.promoStartsAt ? initialData.promoStartsAt.slice(0, 10) : "",
+  );
+  const [promoEndsAt, setPromoEndsAt] = useState(
+    initialData?.promoEndsAt ? initialData.promoEndsAt.slice(0, 10) : "",
+  );
   const [submitting, setSubmitting]   = useState(false);
   const [uploading, setUploading]     = useState(false);
   const [error, setError]             = useState("");
+
+  const [seoFields, setSeoFields] = useState<SeoFieldsValue>(
+    initialData
+      ? {
+          seoTitle: initialData.seoTitle ?? "",
+          seoDescription: initialData.seoDescription ?? "",
+          seoKeywords: initialData.seoKeywords ?? "",
+          ogImage: initialData.ogImage ?? "",
+        }
+      : EMPTY_SEO_FIELDS,
+  );
 
   const flatCategories = useMemo(() => flattenCategories(categoryTree, gender), [categoryTree, gender]);
 
@@ -220,6 +304,42 @@ export function ProductForm({
     setGender(next);
     // the previously selected category may not exist in the new gender's tree
     setCategoryId((current) => (flattenCategories(categoryTree, next).some((c) => c.id === current) ? current : ""));
+    // parent options are gender-scoped too — reset the inline "new category" form
+    setNewCategoryParent("");
+    setNewCategoryError("");
+  }
+
+  async function handleCreateCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setCreatingCategory(true);
+    setNewCategoryError("");
+    try {
+      const parentId = newCategoryParent || null;
+      const result = await createCategory({ name, gender, parentId });
+      if (!result.success || !result.data) {
+        setNewCategoryError(result.error ?? t("FailedCreateCategory"));
+        return;
+      }
+      const node: CategoryNode = {
+        id: result.data.id,
+        name,
+        slug: "",
+        parentId,
+        gender,
+        children: [],
+      };
+      setCategoryTree((prev) => insertCategoryNode(prev, node));
+      setCategoryId(node.id);
+      setNewCategoryName("");
+      setNewCategoryParent("");
+      setShowNewCategory(false);
+      router.refresh();
+    } catch {
+      setNewCategoryError(t("FailedCreateCategory"));
+    } finally {
+      setCreatingCategory(false);
+    }
   }
 
   // ── Main product photos ─────────────────────────────────────────────────
@@ -235,15 +355,39 @@ export function ProductForm({
   }
 
   async function handleMainFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setUploading(true);
+    setError("");
+    let failed = false;
+    try {
+      for (const file of files) {
+        try {
+          const url = await uploadToImgbb(file);
+          setMainImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
+        } catch {
+          failed = true;
+        }
+      }
+    } finally {
+      if (failed) setError(t("ErrImageUpload"));
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  const promoFileRef = useRef<HTMLInputElement>(null);
+  async function handlePromoFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     setError("");
     try {
+      // uploaded straight to the promo slot — never added to the product's photos
       const url = await uploadToImgbb(file);
-      setMainImages((prev) => [...prev, url]);
+      setPromoImage(url);
     } catch {
-      setError("Image upload failed. Check IMGBB_API_KEY in .env.local");
+      setError(t("ErrImageUpload"));
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -265,8 +409,9 @@ export function ProductForm({
   const colorFileRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   // ── Reuse-existing-image picker ──────────────────────────────────────────
-  // "main" targets the main product photos list; any other value is a color row id.
-  const [pickerTarget, setPickerTarget] = useState<"main" | string | null>(null);
+  // "main" targets the main product photos list, "seo" the SEO OG image override,
+  // any other value is a color row id.
+  const [pickerTarget, setPickerTarget] = useState<"main" | "seo" | "promo" | string | null>(null);
 
   const allUploadedImages = useMemo(() => {
     const seen = new Set<string>();
@@ -283,11 +428,19 @@ export function ProductForm({
   const pickerAlreadySelected =
     pickerTarget === "main"
       ? mainImages
-      : (colorRows.find((r) => r.id === pickerTarget)?.imageUrls ?? []);
+      : pickerTarget === "seo"
+        ? (seoFields.ogImage ? [seoFields.ogImage] : [])
+        : pickerTarget === "promo"
+          ? (promoImage ? [promoImage] : [])
+          : (colorRows.find((r) => r.id === pickerTarget)?.imageUrls ?? []);
 
   function handlePickerConfirm(urls: string[]) {
     if (pickerTarget === "main") {
       setMainImages((prev) => [...prev, ...urls.filter((u) => !prev.includes(u))]);
+    } else if (pickerTarget === "seo") {
+      setSeoFields((prev) => ({ ...prev, ogImage: urls[0] ?? prev.ogImage }));
+    } else if (pickerTarget === "promo") {
+      if (urls[0]) setPromoImage(urls[0]);
     } else if (pickerTarget) {
       const targetId = pickerTarget;
       setColorRows((prev) =>
@@ -317,18 +470,30 @@ export function ProductForm({
   }
 
   async function handleColorFileUpload(rowId: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setUploading(true);
     setError("");
+    let failed = false;
     try {
-      const url = await uploadToImgbb(file);
-      setColorRows((prev) =>
-        prev.map((r) => (r.id === rowId ? { ...r, imageUrls: [...r.imageUrls, url] } : r)),
-      );
-    } catch {
-      setError("Image upload failed. Check IMGBB_API_KEY in .env.local");
+      for (const file of files) {
+        try {
+          const url = await uploadToImgbb(file);
+          setColorRows((prev) =>
+            prev.map((r) =>
+              r.id === rowId
+                ? r.imageUrls.includes(url)
+                  ? r
+                  : { ...r, imageUrls: [...r.imageUrls, url] }
+                : r,
+            ),
+          );
+        } catch {
+          failed = true;
+        }
+      }
     } finally {
+      if (failed) setError(t("ErrImageUpload"));
       setUploading(false);
       e.target.value = "";
     }
@@ -375,16 +540,25 @@ export function ProductForm({
   }
 
   // ── Submit ───────────────────────────────────────────────────────────────
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) { setError("Shoe name is required."); return; }
-    if (colorRows.length === 0) { setError("Add at least one color."); return; }
+  // Every section's Save button runs the same save — the product is one atomic
+  // record, so "saving a section" really means "save the whole product now,
+  // without leaving the page". `productId` tracks the id once the product has
+  // been created (either from `initialData`, or from the first successful save
+  // on a brand-new product), so a second click updates in place instead of
+  // creating a duplicate. Only the bottom-of-page button navigates away.
+  const [productId, setProductId] = useState<string | null>(initialData?.id ?? null);
+  const [saved, setSaved] = useState(false);
+
+  function submitProduct(navigateAway: boolean) {
+    if (!name.trim()) { setError(t("ErrNameRequired")); return; }
+    if (colorRows.length === 0) { setError(t("ErrNoColor")); return; }
 
     const priceNum = price.trim() === "" ? 0 : parseFloat(price);
-    if (isNaN(priceNum) || priceNum < 0) { setError("Enter a valid price."); return; }
+    if (isNaN(priceNum) || priceNum < 0) { setError(t("ErrInvalidPrice")); return; }
 
     setSubmitting(true);
     setError("");
+    setSaved(false);
 
     const input = {
       name: name.trim(),
@@ -400,21 +574,48 @@ export function ProductForm({
       isFeatured,
       gender,
       categoryId: categoryId || null,
+      seoTitle: seoFields.seoTitle.trim() || undefined,
+      seoDescription: seoFields.seoDescription.trim() || undefined,
+      seoKeywords: seoFields.seoKeywords.trim() || undefined,
+      ogImage: seoFields.ogImage.trim() || undefined,
+      promoActive,
+      promoPriceCents:
+        promoActive && promoPrice.trim() !== "" && !isNaN(parseFloat(promoPrice))
+          ? Math.round(parseFloat(promoPrice) * 100)
+          : null,
+      promoLabel: promoLabel.trim() || null,
+      promoImage: promoImage.trim() || null,
+      promoStartsAt: promoStartsAt ? new Date(promoStartsAt).toISOString() : null,
+      promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : null,
     };
 
     startTransition(async () => {
       try {
-        const result = initialData
-          ? await updateProduct(initialData.id, input)
+        const result = productId
+          ? await updateProduct(productId, input)
           : await createProduct(input);
-        if (!result.success) { setError(result.error ?? "Something went wrong."); setSubmitting(false); return; }
-        router.push("/admin/products");
+        if (!result.success) { setError(result.error ?? t("ErrGeneric")); setSubmitting(false); return; }
+        if (!productId && "data" in result && result.data?.id) setProductId(result.data.id);
+
+        if (navigateAway) {
+          router.push("/admin/products");
+          router.refresh();
+          return;
+        }
+        setSubmitting(false);
+        setSaved(true);
         router.refresh();
+        setTimeout(() => setSaved(false), 3000);
       } catch {
-        setError("Something went wrong.");
+        setError(t("ErrGeneric"));
         setSubmitting(false);
       }
     });
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    submitProduct(true);
   }
 
   return (
@@ -425,35 +626,195 @@ export function ProductForm({
       )}
 
       {/* Name */}
-      <Field label="Shoe Name *">
-        <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Flex Runner Pro" className={inp} />
+      <Field label={t("FieldProductRef")}>
+        <input value={name} onChange={(e) => setName(e.target.value)} required placeholder={t("PhProductName")} className={inp} />
       </Field>
 
       {/* Price */}
-      <Field label="Base Price (DT)">
-        <input type="number" min="0" step="0.001" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. 89.900" className={inp} />
+      <Field label={t("FieldBasePrice")}>
+        <input type="number" min="0" step="0.001" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("PhPriceExample")} className={inp} />
       </Field>
+
+      <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
+
+      {/* ── Promotion / Sale ── */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 space-y-4">
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm font-bold text-[var(--color-text)]">🏷️ {t("PromoSection")}</span>
+          <input
+            type="checkbox"
+            checked={promoActive}
+            onChange={(e) => setPromoActive(e.target.checked)}
+            className="h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-[var(--color-border)] transition checked:bg-[var(--color-accent)] relative before:absolute before:top-0.5 before:left-0.5 before:h-4 before:w-4 before:rounded-full before:bg-white before:transition checked:before:translate-x-4"
+          />
+        </label>
+
+        {promoActive && (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={`${t("PromoPrice")} (DT)`}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={promoPrice}
+                  onChange={(e) => setPromoPrice(e.target.value)}
+                  placeholder={t("PhPriceExample")}
+                  className={inp}
+                />
+              </Field>
+              <Field label={t("PromoLabel")}>
+                <input
+                  value={promoLabel}
+                  onChange={(e) => setPromoLabel(e.target.value)}
+                  placeholder={t("PromoLabelPh")}
+                  className={inp}
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t("PromoStart")}>
+                <input type="date" value={promoStartsAt} onChange={(e) => setPromoStartsAt(e.target.value)} className={inp} />
+              </Field>
+              <Field label={t("PromoEnd")}>
+                <input type="date" value={promoEndsAt} onChange={(e) => setPromoEndsAt(e.target.value)} className={inp} />
+              </Field>
+            </div>
+
+            <Field label={t("PromoImage")}>
+              <div className="flex items-center gap-3">
+                {promoImage ? (
+                  <img src={promoImage} alt="" className="h-14 w-14 rounded-lg border border-[var(--color-border)] object-cover" />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] text-[10px] text-[var(--color-muted)]">
+                    {t("PromoDefault")}
+                  </div>
+                )}
+                <input
+                  value={promoImage}
+                  onChange={(e) => setPromoImage(e.target.value)}
+                  placeholder={t("PhImageUrl")}
+                  className={`${inp} flex-1`}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={promoFileRef}
+                  onChange={handlePromoFileUpload}
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => promoFileRef.current?.click()}
+                  title={t("PromoImportPhoto")}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-white px-3 py-3 text-xs font-semibold text-[var(--color-text)] hover:bg-[var(--color-bg)] transition disabled:opacity-40"
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <span className="hidden sm:inline">{t("PromoImportPhoto")}</span>
+                </button>
+                {promoImage && (
+                  <button type="button" onClick={() => setPromoImage("")} className="shrink-0 text-[var(--color-muted)] hover:text-red-500" title={t("Remove")}>
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-[var(--color-muted)]">{t("PromoImageHint")}</p>
+            </Field>
+          </div>
+        )}
+
+        <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
+      </div>
 
       {/* Gender + Category */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Gender *">
+        <Field label={t("FieldGender")}>
           <select value={gender} onChange={(e) => handleGenderChange(e.target.value as Gender)} className={inp}>
-            <option value="MEN">Men</option>
-            <option value="WOMEN">Women</option>
+            <option value="MEN">{t("OptMen")}</option>
+            <option value="WOMEN">{t("OptWomen")}</option>
+            <option value="ENFANT">{t("OptEnfant")}</option>
           </select>
         </Field>
-        <Field label="Category">
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inp}>
-            <option value="">No category</option>
-            {flatCategories.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </select>
-          {flatCategories.length === 0 && (
+        <Field label={t("FieldCategory")}>
+          <CategorySelect
+            value={categoryId}
+            onChange={setCategoryId}
+            options={flatCategories}
+            placeholder={t("OptNoCategory")}
+          />
+
+          {!showNewCategory ? (
+            <button
+              type="button"
+              onClick={() => { setShowNewCategory(true); setNewCategoryError(""); }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-accent)] hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("AddCategory")}
+            </button>
+          ) : (
+            <div className="space-y-2 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-bg)] p-3">
+              <input
+                autoFocus
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); handleCreateCategory(); }
+                }}
+                placeholder={newCategoryParent ? t("PhSubCategoryName") : t("PhCategoryName")}
+                className={`${inp} py-2 text-xs`}
+              />
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                  {t("CategoryParent")}
+                </label>
+                <CategorySelect
+                  value={newCategoryParent}
+                  onChange={setNewCategoryParent}
+                  options={flatCategories}
+                  placeholder={t("CategoryParentNone")}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={creatingCategory || !newCategoryName.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-3 py-2 text-xs font-bold text-white transition hover:bg-[var(--color-green-mid)] disabled:opacity-50"
+                >
+                  {creatingCategory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {t("Add")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewCategory(false);
+                    setNewCategoryName("");
+                    setNewCategoryParent("");
+                    setNewCategoryError("");
+                  }}
+                  className="rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-muted)] transition hover:text-[var(--color-text)]"
+                >
+                  {t("Cancel")}
+                </button>
+                <span className="text-xs text-[var(--color-muted)]">
+                  {gender === "MEN" ? t("OptMen") : gender === "WOMEN" ? t("OptWomen") : t("OptEnfant")}
+                </span>
+              </div>
+
+              {newCategoryError && <p className="text-xs text-red-600">{newCategoryError}</p>}
+            </div>
+          )}
+
+          {flatCategories.length === 0 && !showNewCategory && (
             <p className="text-xs text-[var(--color-muted)]">
-              No categories yet — create some in{" "}
+              {t("NoCategoriesHint")}
               <a href="/admin/categories" className="underline hover:text-[var(--color-accent)]">
-                Categories
+                {t("Categories")}
               </a>
               .
             </p>
@@ -461,12 +822,14 @@ export function ProductForm({
         </Field>
       </div>
 
+      <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
+
       {/* Main Product Photos */}
       <div className="rounded-2xl border border-[var(--color-border)] bg-white p-5 space-y-3">
         <div>
-          <p className="text-sm font-bold text-[var(--color-text)]">Main Product Photos</p>
+          <p className="text-sm font-bold text-[var(--color-text)]">{t("SecMainPhotos")}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
-            Shown on product cards and as the default gallery before a color is selected. Add multiple photos.
+            {t("MainPhotosHint")}
           </p>
         </div>
 
@@ -477,7 +840,7 @@ export function ProductForm({
               value={mainUrlInput}
               onChange={(e) => setMainUrlInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMainUrl(); } }}
-              placeholder="Paste image URL…"
+              placeholder={t("PhImageUrl")}
               className={`${inp} py-2 pl-8 text-xs`}
             />
           </div>
@@ -486,12 +849,11 @@ export function ProductForm({
             onClick={addMainUrl}
             disabled={!mainUrlInput.trim() || uploading}
             className="shrink-0 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
-          >
-            Add
-          </button>
+          >{t("Add")}</button>
           <input
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             ref={mainFileRef}
             onChange={handleMainFileUpload}
@@ -500,7 +862,7 @@ export function ProductForm({
             type="button"
             disabled={uploading}
             onClick={() => mainFileRef.current?.click()}
-            title="Upload from device"
+            title={t("TipUploadFromDevice")}
             className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-white px-2.5 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -509,7 +871,7 @@ export function ProductForm({
             type="button"
             disabled={uploading || allUploadedImages.length === 0}
             onClick={() => setPickerTarget("main")}
-            title="Choose from already uploaded images"
+            title={t("TipChooseUploaded")}
             className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-white px-2.5 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
           >
             <Images className="h-3.5 w-3.5" />
@@ -531,7 +893,7 @@ export function ProductForm({
                 />
                 {pi === 0 && (
                   <span className="absolute left-1 top-1 rounded bg-[var(--color-accent)] px-1 text-[8px] font-bold text-white">
-                    Card
+                    {t("BadgeCard")}
                   </span>
                 )}
                 <button
@@ -545,14 +907,16 @@ export function ProductForm({
             ))}
           </div>
         )}
+
+        <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
       </div>
 
       {/* Colors */}
       <div className="space-y-3">
         <div>
-          <p className="text-sm font-bold text-[var(--color-text)]">Colors, Photos &amp; Sizes</p>
+          <p className="text-sm font-bold text-[var(--color-text)]">{t("SecColorsPhotosSizes")}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">
-            Each color has its own photos and size/stock table. Stock 0 = sold out.
+            {t("ColorsHint")}
           </p>
         </div>
 
@@ -576,7 +940,7 @@ export function ProductForm({
                   const detectedHex = nameToHex(n);
                   updateColor(row.id, { name: n, ...(detectedHex ? { hex: detectedHex } : {}) });
                 }}
-                placeholder="Color name (e.g. Noir, Camel, Bordeaux…)"
+                placeholder={t("PhColorName")}
                 className={`${inp} min-w-0 flex-1`}
               />
               <button
@@ -590,7 +954,7 @@ export function ProductForm({
 
             {/* Photos */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Photos</p>
+              <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">{t("LabelPhotos")}</p>
               <div className="flex gap-2">
                 <div className="relative min-w-0 flex-1">
                   <LinkIcon className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-muted)]" />
@@ -598,7 +962,7 @@ export function ProductForm({
                     value={row.urlInput}
                     onChange={(e) => updateColor(row.id, { urlInput: e.target.value })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColorUrl(row.id); } }}
-                    placeholder="Paste image URL…"
+                    placeholder={t("PhImageUrl")}
                     className={`${inp} py-2 pl-8 text-xs`}
                   />
                 </div>
@@ -607,12 +971,11 @@ export function ProductForm({
                   onClick={() => addColorUrl(row.id)}
                   disabled={!row.urlInput.trim() || uploading}
                   className="shrink-0 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
-                >
-                  Add
-                </button>
+                >{t("Add")}</button>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   ref={(el) => { if (el) colorFileRefs.current.set(row.id, el); }}
                   onChange={(e) => handleColorFileUpload(row.id, e)}
@@ -621,7 +984,7 @@ export function ProductForm({
                   type="button"
                   disabled={uploading}
                   onClick={() => colorFileRefs.current.get(row.id)?.click()}
-                  title="Upload from device"
+                  title={t("TipUploadFromDevice")}
                   className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-white px-2.5 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
                 >
                   {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -630,7 +993,7 @@ export function ProductForm({
                   type="button"
                   disabled={uploading || allUploadedImages.length === 0}
                   onClick={() => setPickerTarget(row.id)}
-                  title="Choose from already uploaded images"
+                  title={t("TipChooseUploaded")}
                   className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-white px-2.5 py-2 text-xs font-semibold hover:bg-[var(--color-bg)] transition disabled:opacity-40"
                 >
                   <Images className="h-3.5 w-3.5" />
@@ -644,7 +1007,7 @@ export function ProductForm({
                         onError={(e) => { (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23e5e7eb'/%3E%3C/svg%3E"; }}
                       />
                       {pi === 0 && (
-                        <span className="absolute left-1 top-1 rounded bg-[var(--color-accent)] px-1 text-[8px] font-bold text-white">Main</span>
+                        <span className="absolute left-1 top-1 rounded bg-[var(--color-accent)] px-1 text-[8px] font-bold text-white">{t("BadgeMain")}</span>
                       )}
                       <button
                         type="button"
@@ -671,7 +1034,7 @@ export function ProductForm({
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition"
                 >
                   <Copy className="h-3 w-3" />
-                  Copy sizes from first color
+                  {t("CopySizesFromFirst")}
                 </button>
               )}
               <SizesEditor
@@ -691,20 +1054,47 @@ export function ProductForm({
           onClick={() => setColorRows((prev) => [...prev, { id: uid(), name: "", hex: "#888888", imageUrls: [], urlInput: "", sizes: [], sizeInput: "" }])}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-sm font-medium text-[var(--color-muted)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
         >
-          <Plus className="h-4 w-4" /> Add Color
+          <Plus className="h-4 w-4" /> {t("AddColor")}
         </button>
+
+        <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
       </div>
+
+      {/* SEO */}
+      <SeoFieldsEditor
+        value={seoFields}
+        onChange={setSeoFields}
+        onUploadImage={uploadToImgbb}
+        onSelectExisting={() => setPickerTarget("seo")}
+        hasExistingImages={allUploadedImages.length > 0}
+        onAutoFill={() =>
+          setSeoFields((prev) => ({
+            ...prev,
+            ...generateSeoFields({
+              name,
+              gender,
+              categoryName: flatCategories.find((c) => c.id === categoryId)?.label.replace(/^(?:— )+/, "") ?? null,
+              colorNames: colorRows.map((r) => r.name).filter(Boolean),
+            }),
+          }))
+        }
+        entityLabel="produit"
+      />
+
+      <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
 
       {/* Visibility */}
       <div className="rounded-xl border border-[var(--color-border)] bg-white p-5 space-y-3">
         <label className="flex cursor-pointer items-center gap-3">
           <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="h-4 w-4 rounded accent-[var(--color-accent)]" />
-          <span className="text-sm font-medium text-[var(--color-text)]">Published — visible to store visitors</span>
+          <span className="text-sm font-medium text-[var(--color-text)]">{t("VisibilityPublished")}</span>
         </label>
         <label className="flex cursor-pointer items-center gap-3">
           <input type="checkbox" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="h-4 w-4 rounded accent-[var(--color-accent)]" />
-          <span className="text-sm font-medium text-[var(--color-text)]">Featured — shown on the homepage</span>
+          <span className="text-sm font-medium text-[var(--color-text)]">{t("VisibilityFeatured")}</span>
         </label>
+
+        <SectionSaveButton submitting={submitting} saved={saved} onClick={() => submitProduct(false)} />
       </div>
 
       {/* Submit */}
@@ -715,10 +1105,10 @@ export function ProductForm({
           className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-green-mid)] disabled:opacity-60 active:scale-95"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {initialData ? "Save Changes" : "Add Shoe"}
+          {initialData ? t("SaveChanges") : t("AddShoe")}
         </button>
         <a href="/admin/products" className="rounded-xl border border-[var(--color-border)] bg-white px-6 py-3 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-bg)] transition">
-          Cancel
+          {t("Cancel")}
         </a>
       </div>
     </form>
@@ -727,6 +1117,7 @@ export function ProductForm({
       <ImagePickerModal
         images={allUploadedImages}
         alreadySelected={pickerAlreadySelected}
+        mode={pickerTarget === "seo" || pickerTarget === "promo" ? "single" : "multi"}
         onConfirm={handlePickerConfirm}
         onClose={() => setPickerTarget(null)}
       />

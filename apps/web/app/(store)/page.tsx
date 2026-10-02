@@ -1,10 +1,15 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight } from "lucide-react";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import { ArrowRight, Phone, Mail, MapPin } from "lucide-react";
 
+import { getBaseUrl } from "@/lib/seo";
+import { getContactInfo } from "@/actions/storeConfigActions";
 import { getFeaturedProducts, getProductsByIds } from "@/actions/productActions";
-import { ProductGrid } from "@/components/store/ProductGrid";
-import { ProductTile } from "@/components/store/ProductTile";
+import { FeaturedCollectionGrid } from "@/components/store/FeaturedCollectionGrid";
+import { FeaturedShoes } from "@/components/store/FeaturedShoes";
+import { UspMarquee } from "@/components/store/UspMarquee";
 import { AutoPlayVideo } from "@/components/store/AutoPlayVideo";
 import { Reveal } from "@/components/ui/Reveal";
 import { SectionDivider } from "@/components/ui/SectionDivider";
@@ -19,10 +24,25 @@ import {
   DEFAULT_EDITORIAL_2,
 } from "@/types";
 
+// Title / description / OG come from the root layout's global SEO settings — the
+// home page IS the content those settings describe. Only the canonical URL is
+// page-specific (self-referencing on the current host).
+export async function generateMetadata(): Promise<Metadata> {
+  const baseUrl = await getBaseUrl();
+  return { alternates: { canonical: `${baseUrl}/` } };
+}
+
+function telHref(phone: string): string | null {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return digits.replace(/\D/g, "").length >= 6 ? `tel:${digits}` : null;
+}
+
 export default async function HomePage() {
-  const [featured, settingsResult] = await Promise.all([
+  const [featured, settingsResult, contact, tFooter] = await Promise.all([
     getFeaturedProducts(),
     getStoreSettings(),
+    getContactInfo(),
+    getTranslations("Footer"),
   ]);
   const products = featured.success ? (featured.data ?? []) : [];
   const settings = settingsResult.success ? settingsResult.data : null;
@@ -32,7 +52,7 @@ export default async function HomePage() {
   const homepageFeatured =
     curatedResult?.success && (curatedResult.data?.length ?? 0) > 0
       ? curatedResult.data!
-      : products.slice(0, 4);
+      : products;
 
   const hero = {
     cta1: settings?.heroCta1 ?? DEFAULT_HERO.cta1,
@@ -43,6 +63,8 @@ export default async function HomePage() {
     desc: settings?.footerCtaDesc ?? DEFAULT_FOOTER_CTA.desc,
     btn: settings?.footerCtaBtn ?? DEFAULT_FOOTER_CTA.btn,
   };
+
+  const phoneHref = telHref(contact.phone);
 
   const collection = {
     label: settings?.collectionLabel ?? DEFAULT_COLLECTION.label,
@@ -80,13 +102,22 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* ── HERO — FULL-SCREEN VIDEO ─────────────────────────────────── */}
-      <section className="relative h-screen w-full overflow-hidden bg-[var(--color-green-dark)]">
+      {/* ── HERO ──────────────────────────────────────────────────────
+          On mobile the video plays at its own natural size (no forced
+          full-screen height, no cropping, no letterbox bars) — the section
+          just wraps around it. From `sm:` up it goes back to the classic
+          full-screen cropped background. The image fallback (no video set)
+          always stays full-screen. */}
+      <section
+        className={`relative w-full overflow-hidden bg-[var(--color-green-dark)] ${
+          hasVideo ? "sm:h-screen" : "h-screen"
+        }`}
+      >
         {hasVideo ? (
           <AutoPlayVideo
             src={videoUrl}
             controls={false}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="relative block h-auto w-full sm:absolute sm:inset-0 sm:h-full sm:object-cover"
           />
         ) : settings?.heroImage ? (
           <Image src={settings.heroImage} alt="" fill priority className="object-cover" />
@@ -94,7 +125,7 @@ export default async function HomePage() {
 
         <div className="absolute inset-0 bg-black/30" />
 
-        <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
           <Link
             href="/shop"
             className="inline-flex items-center gap-2 border border-white/70 px-10 py-3.5 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white hover:text-[var(--color-green-dark)]"
@@ -111,10 +142,14 @@ export default async function HomePage() {
       {homepageFeatured.length > 0 && (
         <section className="bg-white">
           <div className="w-full">
-            <div className="grid grid-cols-1 gap-1 lg:h-[640px] lg:grid-cols-2">
-              {/* left: image, fills the full half */}
-              <Reveal className="h-full">
-                <div className="relative h-[420px] w-full overflow-hidden bg-[var(--color-bg)] lg:h-full">
+            <div className="grid grid-cols-1 gap-1 lg:grid-cols-2">
+              {/* left: a square box on mobile; on desktop it stretches to match
+                  the exact height of the product grid on the right instead of
+                  computing its own (which left a few px of mismatch — the two
+                  were each sized independently: aspect-square vs. tile-grid
+                  content height) */}
+              <Reveal className="lg:h-full">
+                <div className="relative aspect-square w-full overflow-hidden bg-[var(--color-bg)] lg:aspect-auto lg:h-full">
                   {featuredImage && (
                     <Image
                       src={featuredImage}
@@ -136,33 +171,21 @@ export default async function HomePage() {
                 </div>
               </Reveal>
 
-              {/* right: 3-4 featured products, covering squares */}
-              <Reveal delay={0.1} className="h-full">
-                <div className="grid h-[420px] grid-cols-2 grid-rows-2 gap-1 lg:h-full">
-                  {homepageFeatured.map((product) => (
-                    <div key={product.id} className="relative h-full w-full">
-                      <ProductTile product={product} />
-                    </div>
-                  ))}
-                </div>
+              {/* right: featured products — a square-tile grid up to 4, a
+                  slider past that (see FeaturedShoes) */}
+              <Reveal delay={0.1}>
+                <FeaturedShoes products={homepageFeatured} />
               </Reveal>
             </div>
           </div>
         </section>
       )}
 
-      {/* ── USP BAR ──────────────────────────────────────────────────── */}
-      <section className="border-y border-[var(--color-border)] bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <Reveal className="grid grid-cols-2 divide-x divide-[var(--color-border)] md:grid-cols-4">
-            {usp.map((item, i) => (
-              <div key={i} className="px-4 text-center first:pl-0 last:pr-0">
-                <p className="text-base font-semibold uppercase tracking-wide text-[var(--color-text)] sm:text-lg">{item.label}</p>
-                <p className="mt-1.5 text-sm text-[var(--color-muted)]">{item.desc}</p>
-              </div>
-            ))}
-          </Reveal>
-        </div>
+      {/* ── USP BAR — STATIC IF IT FITS, INFINITE MARQUEE IF IT DOESN'T ── */}
+      <section className="overflow-hidden border-y border-[var(--color-border)] bg-white py-8">
+        <Reveal>
+          <UspMarquee usp={usp} />
+        </Reveal>
       </section>
 
       {/* ── EDITORIAL / CRAFTSMANSHIP ────────────────────────────────── */}
@@ -171,7 +194,7 @@ export default async function HomePage() {
           {editorial1.image && (
             <Reveal>
               <div className="grid grid-cols-1 items-center lg:grid-cols-2">
-                <div className="relative aspect-[4/5] w-full overflow-hidden bg-[var(--color-bg)] lg:aspect-auto lg:h-[720px]">
+                <div className="relative aspect-square w-full overflow-hidden bg-[var(--color-bg)]">
                   <Image
                     src={editorial1.image}
                     alt={editorial1.title}
@@ -205,7 +228,7 @@ export default async function HomePage() {
                   </h2>
                   <p className="mt-5 max-w-md text-base text-[var(--color-muted)]">{editorial2.desc}</p>
                 </div>
-                <div className="order-1 relative aspect-[4/5] w-full overflow-hidden bg-[var(--color-bg)] lg:order-2 lg:aspect-auto lg:h-[720px]">
+                <div className="order-1 relative aspect-square w-full overflow-hidden bg-[var(--color-bg)] lg:order-2">
                   <Image
                     src={editorial2.image}
                     alt={editorial2.title}
@@ -239,7 +262,7 @@ export default async function HomePage() {
             </Link>
           </Reveal>
           <Reveal delay={0.1}>
-            <ProductGrid products={products} />
+            <FeaturedCollectionGrid products={products} />
           </Reveal>
         </div>
       </section>
@@ -249,12 +272,57 @@ export default async function HomePage() {
         <Reveal className="relative mx-auto max-w-xl px-6 text-center">
           <h2 className="font-display text-3xl text-white md:text-5xl">{footerCta.title}</h2>
           <p className="mt-4 text-white/60">{footerCta.desc}</p>
-          <Link
-            href="/shop"
-            className="mt-8 inline-flex items-center gap-2 bg-white px-10 py-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-green-dark)] transition hover:bg-white/90"
-          >
-            {footerCta.btn} <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/shop"
+              className="inline-flex items-center gap-2 bg-white px-10 py-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-green-dark)] transition hover:bg-white/90"
+            >
+              {footerCta.btn} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mx-auto mt-12 flex flex-col items-center gap-6 border-t border-white/15 pt-10 text-lg text-white/75 sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:text-xl">
+            <div className="flex flex-col items-center gap-4 sm:items-start">
+              {phoneHref ? (
+                <a href={phoneHref} className="inline-flex items-center gap-3 transition hover:text-white">
+                  <Phone className="h-5 w-5 shrink-0" />
+                  {contact.phone}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-3">
+                  <Phone className="h-5 w-5 shrink-0" />
+                  {contact.phone}
+                </span>
+              )}
+              {contact.email && (
+                <a
+                  href={`mailto:${contact.email}`}
+                  className="inline-flex items-center gap-3 transition hover:text-white"
+                >
+                  <Mail className="h-5 w-5 shrink-0" />
+                  {contact.email}
+                </a>
+              )}
+              <span className="inline-flex items-center gap-3">
+                <MapPin className="h-5 w-5 shrink-0" />
+                {contact.location}
+              </span>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-center gap-4 sm:flex-row sm:gap-6">
+              <span
+                aria-hidden
+                className="h-px w-16 bg-white/15 sm:h-12 sm:w-px"
+              />
+              <Link
+                href="/contact"
+                className="group inline-flex items-center gap-2.5 border border-transparent px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 transition-all duration-300 ease-out hover:border-white/40 hover:bg-white/10 hover:text-white"
+              >
+                {tFooter("GetInTouch")}
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 ease-out group-hover:translate-x-1.5" />
+              </Link>
+            </div>
+          </div>
         </Reveal>
       </section>
     </main>

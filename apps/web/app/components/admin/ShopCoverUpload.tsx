@@ -3,14 +3,19 @@
 import { useState, useTransition } from "react";
 import { Loader2, CheckCircle2, ImageIcon } from "lucide-react";
 import { saveShopCoverSettings } from "@/actions/storeSettingsActions";
-import Uploader from "./Uploader";
+import { useTranslations } from "next-intl";
+import CroppedImageUploader from "./CroppedImageUploader";
 
-type Slot = "shop" | "men" | "women";
+type Slot = "shop" | "men" | "women" | "enfant";
 
-const SLOT_META: Record<Slot, { field: "shopCoverImage" | "menCoverImage" | "womenCoverImage"; label: string; hint: string }> = {
-  shop: { field: "shopCoverImage", label: "Shop (default)", hint: "Shown on /shop when no Men/Women filter is active" },
+const SLOT_META: Record<
+  Slot,
+  { field: "shopCoverImage" | "menCoverImage" | "womenCoverImage" | "enfantCoverImage"; label: string; hint: string }
+> = {
+  shop: { field: "shopCoverImage", label: "Shop (default)", hint: "Shown on /shop when no Men/Women/Kids filter is active" },
   men: { field: "menCoverImage", label: "Men", hint: "Shown on /shop?gender=men" },
   women: { field: "womenCoverImage", label: "Women", hint: "Shown on /shop?gender=women" },
+  enfant: { field: "enfantCoverImage", label: "Kids", hint: "Shown on /shop?gender=enfant" },
 };
 
 function CoverSlot({
@@ -22,6 +27,7 @@ function CoverSlot({
   initialUrl: string | null;
   onUploaded?: (url: string) => void;
 }) {
+  const t = useTranslations("Admin");
   const meta = SLOT_META[slot];
   const [imageUrl, setImageUrl] = useState(initialUrl);
   const [imgFailed, setImgFailed] = useState(false);
@@ -42,7 +48,7 @@ function CoverSlot({
         setUploadSuccess(true);
         onUploaded?.(uploaded);
       } else {
-        setUploadError(result.error ?? "Failed to save photo");
+        setUploadError(result.error ?? t("FailedToSavePhoto"));
       }
     });
   }
@@ -89,9 +95,10 @@ function CoverSlot({
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{uploadError}</p>
       )}
 
-      <Uploader
+      <CroppedImageUploader
         endpoint="storeImage"
-        buttonText={imageUrl ? "Upload New Photo" : "Upload Photo"}
+        aspect={16 / 9}
+        buttonText={imageUrl ? t("UploadNewPhoto") : t("UploadPhoto")}
         handleUploadComplete={handleUploadComplete}
       />
     </div>
@@ -102,18 +109,21 @@ export function ShopCoverUpload({
   initialShopImage,
   initialMenImage,
   initialWomenImage,
+  initialEnfantImage,
   onUploaded,
 }: {
   initialShopImage: string | null;
   initialMenImage: string | null;
   initialWomenImage: string | null;
+  initialEnfantImage: string | null;
   onUploaded?: (slot: Slot, url: string) => void;
 }) {
   return (
-    <div className="grid gap-6 sm:grid-cols-3">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
       <CoverSlot slot="shop" initialUrl={initialShopImage} onUploaded={(url) => onUploaded?.("shop", url)} />
       <CoverSlot slot="men" initialUrl={initialMenImage} onUploaded={(url) => onUploaded?.("men", url)} />
       <CoverSlot slot="women" initialUrl={initialWomenImage} onUploaded={(url) => onUploaded?.("women", url)} />
+      <CoverSlot slot="enfant" initialUrl={initialEnfantImage} onUploaded={(url) => onUploaded?.("enfant", url)} />
     </div>
   );
 }
