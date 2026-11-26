@@ -72,7 +72,32 @@
     "Password": "Mot de passe",
     "Submit": "Se connecter",
     "NoAccount": "Pas encore de compte ?",
-    "CreateOne": "En créer un"
+    "CreateOne": "En créer un",
+    "ForgotPassword": "Mot de passe oublié ?"
+  },
+  "ForgotPassword": {
+    "Title": "Mot de passe oublié",
+    "Subtitle": "Saisissez votre e-mail et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+    "Email": "E-mail",
+    "Submit": "Envoyer le lien",
+    "SentTitle": "Vérifiez votre boîte mail",
+    "SentText": "Si un compte existe pour {email}, vous recevrez bientôt un lien de réinitialisation. Le lien expire dans 1 heure.",
+    "BackToLogin": "Retour à la connexion",
+    "Error": "Une erreur est survenue. Veuillez réessayer."
+  },
+  "ResetPassword": {
+    "Title": "Réinitialiser le mot de passe",
+    "Subtitle": "Choisissez un nouveau mot de passe pour votre compte.",
+    "Password": "Nouveau mot de passe",
+    "Confirm": "Confirmer le mot de passe",
+    "Submit": "Réinitialiser",
+    "TooShort": "Le mot de passe doit contenir au moins 6 caractères.",
+    "Mismatch": "Les mots de passe ne correspondent pas.",
+    "InvalidLink": "Ce lien de réinitialisation est invalide ou incomplet.",
+    "RequestNew": "Demander un nouveau lien",
+    "Success": "Votre mot de passe a été réinitialisé. Redirection vers la connexion…",
+    "BackToLogin": "Retour à la connexion",
+    "Error": "Une erreur est survenue. Veuillez réessayer."
   },
   "Register": {
     "Title": "Créer un compte",

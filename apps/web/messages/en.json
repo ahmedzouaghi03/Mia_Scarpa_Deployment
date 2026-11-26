@@ -72,7 +72,32 @@
     "Password": "Password",
     "Submit": "Sign In",
     "NoAccount": "Don't have an account?",
-    "CreateOne": "Create one"
+    "CreateOne": "Create one",
+    "ForgotPassword": "Forgot password?"
+  },
+  "ForgotPassword": {
+    "Title": "Forgot Password",
+    "Subtitle": "Enter your email and we'll send you a link to reset your password.",
+    "Email": "Email",
+    "Submit": "Send reset link",
+    "SentTitle": "Check your inbox",
+    "SentText": "If an account exists for {email}, you'll receive a reset link shortly. The link expires in 1 hour.",
+    "BackToLogin": "Back to sign in",
+    "Error": "Something went wrong. Please try again."
+  },
+  "ResetPassword": {
+    "Title": "Reset Password",
+    "Subtitle": "Choose a new password for your account.",
+    "Password": "New password",
+    "Confirm": "Confirm password",
+    "Submit": "Reset password",
+    "TooShort": "Password must be at least 6 characters.",
+    "Mismatch": "Passwords do not match.",
+    "InvalidLink": "This reset link is invalid or incomplete.",
+    "RequestNew": "Request a new link",
+    "Success": "Your password has been reset. Redirecting to sign in…",
+    "BackToLogin": "Back to sign in",
+    "Error": "Something went wrong. Please try again."
   },
   "Register": {
     "Title": "Create Account",
