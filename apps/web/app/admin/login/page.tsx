@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Loader2, Lock } from "lucide-react";
 import { login } from "@/actions/authActions";
 
@@ -59,9 +60,17 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-[var(--color-text)]">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-[var(--color-text)]">
+                  Password
+                </label>
+                <Link
+                  href="/admin/forgot-password"
+                  className="text-xs font-semibold text-[var(--color-accent)] hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 name="password"
                 type="password"
