@@ -22,7 +22,7 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
-            cd /opt/miascarpa
+            cd /var/www/miascarpashoes.tn
 
             git fetch --all
             git reset --hard origin/main
