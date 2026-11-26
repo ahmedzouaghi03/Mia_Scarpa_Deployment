@@ -6,8 +6,27 @@ function getResendClient() {
   return new Resend(apiKey);
 }
 
-export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/resetPassword?token=${token}`;
+// Must be an address on a domain verified in the Resend dashboard.
+const EMAIL_FROM =
+  process.env.EMAIL_FROM || "Mia Scarpa <contact@miascarpashoes.tn>";
+
+function getAppUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://miascarpashoes.tn"
+  ).replace(/\/$/, "");
+}
+
+export type PasswordResetScope = "store" | "admin";
+
+export async function sendPasswordResetEmail(
+  email: string,
+  token: string,
+  scope: PasswordResetScope = "store",
+) {
+  const resetPath = scope === "admin" ? "/admin/reset-password" : "/account/reset-password";
+  const resetUrl = `${getAppUrl()}${resetPath}?token=${encodeURIComponent(token)}`;
 
   const html = `
 <!DOCTYPE html>
@@ -54,7 +73,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
   const resend = getResendClient();
   return resend.emails.send({
-    from: "Flex <onboarding@resend.dev>",
+    from: EMAIL_FROM,
     to: email,
     subject: "Reset Your Password - Flex",
     html,
@@ -118,7 +137,7 @@ export async function sendContactFormEmail({
 
   const resend = getResendClient();
   return resend.emails.send({
-    from: "Flex <onboarding@resend.dev>",
+    from: EMAIL_FROM,
     to: recipient,
     ...(replyEmail ? { replyTo: replyEmail } : {}),
     subject: `[Flex] ${displaySubject} — from ${name}`,
