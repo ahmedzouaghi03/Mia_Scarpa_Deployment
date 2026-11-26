@@ -1,0 +1,21 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      secrets:
+        - app_env
+    image: miascarpa-web:latest
+    container_name: miascarpa-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      # Only reachable from the VPS itself; Nginx proxies to it.
+      - "127.0.0.1:8085:3001"
+
+secrets:
+  app_env:
+    file: ./.env
