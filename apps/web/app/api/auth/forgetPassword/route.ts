@@ -15,15 +15,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email } = parsed.data;
+    const { email, scope } = parsed.data;
 
     const user = await db.user.findUnique({
       where: { email: email.toLowerCase(), isDeleted: false },
-      select: { id: true, email: true },
+      select: { id: true, email: true, role: true },
     });
 
+    const isAdmin = !!user && ["ADMIN", "SUPER_ADMIN"].includes(user.role);
+
     // Always return success to prevent email enumeration
-    if (!user) {
+    if (!user || (scope === "admin" && !isAdmin)) {
       return NextResponse.json({ success: true });
     }
 
@@ -35,7 +37,11 @@ export async function POST(req: NextRequest) {
       data: { passwordResetToken: token, passwordResetExpires: expires },
     });
 
-    await sendPasswordResetEmail(user.email, token);
+    const { error: sendError } = await sendPasswordResetEmail(user.email, token, scope);
+    if (sendError) {
+      console.error("[API/AUTH/FORGET-PASSWORD] Resend error", sendError);
+      return NextResponse.json({ error: "Could not send email" }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
