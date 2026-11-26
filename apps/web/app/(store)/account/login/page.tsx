@@ -77,6 +77,15 @@ export default function LoginPage() {
           </button>
         </div>
 
+        <div className="text-end">
+          <Link
+            href="/account/forgot-password"
+            className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-muted)] transition hover:text-[var(--color-text)] hover:underline"
+          >
+            {t("ForgotPassword")}
+          </Link>
+        </div>
+
         <button type="submit" disabled={isPending} className={submitBtn}>
           {isPending && <Loader2 size={16} className="animate-spin" />}
           {t("Submit")}
