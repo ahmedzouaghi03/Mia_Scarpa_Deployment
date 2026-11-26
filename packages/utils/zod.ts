@@ -14,6 +14,8 @@ export const signInSchema = z.object({
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address"),
+  // Decides which reset page the emailed link points to.
+  scope: z.enum(["store", "admin"]).optional().default("store"),
 });
 
 export const resetPasswordSchema = z.object({
