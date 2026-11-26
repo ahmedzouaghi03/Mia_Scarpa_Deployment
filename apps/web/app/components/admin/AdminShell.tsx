@@ -40,8 +40,12 @@ export function AdminShell({
     setMobileNavOpen(false);
   }, [pathname]);
 
-  // Login page — render nothing but the page itself
-  if (pathname === "/admin/login") {
+  // Public auth pages — render nothing but the page itself
+  if (
+    pathname === "/admin/login" ||
+    pathname === "/admin/forgot-password" ||
+    pathname === "/admin/reset-password"
+  ) {
     return <>{children}</>;
   }
 
