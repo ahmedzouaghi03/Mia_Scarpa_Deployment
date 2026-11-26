@@ -3,6 +3,11 @@ import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "authToken";
 const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+const PUBLIC_ADMIN_PATHS = new Set([
+  "/admin/login",
+  "/admin/forgot-password",
+  "/admin/reset-password",
+]);
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET ?? "";
@@ -30,7 +35,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!pathname.startsWith("/admin")) return NextResponse.next();
-  if (pathname === "/admin/login") return NextResponse.next();
+  if (PUBLIC_ADMIN_PATHS.has(pathname)) return NextResponse.next();
 
   const token = req.cookies.get(COOKIE_NAME)?.value ?? "";
   const payload = await getAdminPayload(token);
