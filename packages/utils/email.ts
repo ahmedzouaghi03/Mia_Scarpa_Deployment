@@ -10,6 +10,21 @@ function getResendClient() {
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "Mia Scarpa <contact@miascarpashoes.tn>";
 
+// Contact-form notifications are delivered TO contact@, so they come from a different
+// address — Gmail can file mail "from yourself" oddly when contact@ is also a send-as alias.
+const CONTACT_FORM_FROM =
+  process.env.CONTACT_FORM_FROM || "Mia Scarpa Website <noreply@miascarpashoes.tn>";
+
+// Visitor input goes into the email HTML — escape it so it can't inject markup or links.
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getAppUrl() {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -98,6 +113,15 @@ export async function sendContactFormEmail({
   const displaySubject = subject?.trim() || "General Inquiry";
   const replyEmail = email?.trim() || undefined;
 
+  const safeName = escapeHtml(name);
+  const safeSubject = escapeHtml(displaySubject);
+  const safeEmail = replyEmail ? escapeHtml(replyEmail) : undefined;
+  const safePhone = phone ? escapeHtml(phone) : undefined;
+  const safeMessage = escapeHtml(message);
+  const mailto = replyEmail
+    ? escapeHtml(`mailto:${encodeURIComponent(replyEmail)}?subject=${encodeURIComponent(`Re: ${displaySubject}`)}`)
+    : undefined;
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -107,21 +131,21 @@ export async function sendContactFormEmail({
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:20px;overflow:hidden;">
         <tr>
           <td style="padding:32px;background:linear-gradient(135deg,#1a3406,#4a7018 50%,#7ab820);color:#fff;">
-            <div style="font-size:22px;font-weight:700;">New Contact — ${displaySubject}</div>
+            <div style="font-size:22px;font-weight:700;">New Contact — ${safeSubject}</div>
           </td>
         </tr>
         <tr>
           <td style="padding:28px 32px;">
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Email:</strong> ${replyEmail ?? "—"}</p>
-            ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
-            <p><strong>Subject:</strong> ${displaySubject}</p>
-            <div style="padding:20px;border:1px solid #d6e8b8;border-radius:12px;background:#f4f7ee;white-space:pre-line;">${message}</div>
+            <p><strong>Name:</strong> ${safeName}</p>
+            <p><strong>Email:</strong> ${safeEmail ?? "—"}</p>
+            ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
+            <p><strong>Subject:</strong> ${safeSubject}</p>
+            <div style="padding:20px;border:1px solid #d6e8b8;border-radius:12px;background:#f4f7ee;white-space:pre-line;">${safeMessage}</div>
             ${
-              replyEmail
+              mailto
                 ? `<div style="margin-top:20px;">
-              <a href="mailto:${replyEmail}?subject=Re: ${displaySubject}" style="display:inline-block;background:linear-gradient(135deg,#4a7018,#5c8c1e);color:#fff;text-decoration:none;padding:12px 28px;border-radius:12px;font-weight:600;">
-                Reply to ${name.split(" ")[0]}
+              <a href="${mailto}" style="display:inline-block;background:linear-gradient(135deg,#4a7018,#5c8c1e);color:#fff;text-decoration:none;padding:12px 28px;border-radius:12px;font-weight:600;">
+                Reply to ${escapeHtml(name.split(" ")[0] ?? name)}
               </a>
             </div>`
                 : ""
@@ -137,7 +161,7 @@ export async function sendContactFormEmail({
 
   const resend = getResendClient();
   return resend.emails.send({
-    from: EMAIL_FROM,
+    from: CONTACT_FORM_FROM,
     to: recipient,
     ...(replyEmail ? { replyTo: replyEmail } : {}),
     subject: `[Flex] ${displaySubject} — from ${name}`,
