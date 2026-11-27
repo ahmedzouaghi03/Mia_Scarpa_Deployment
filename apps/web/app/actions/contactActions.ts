@@ -45,20 +45,28 @@ export async function submitContact(
   }
 }
 
+// Store inbox that always receives contact-form submissions (forwarded to Gmail via Cloudflare Email Routing).
+const CONTACT_INBOX = process.env.CONTACT_INBOX_EMAIL || "contact@miascarpashoes.tn";
+
 async function notifySuperAdmins(data: ContactInput) {
   const admins = await db.user.findMany({
     where: { role: "SUPER_ADMIN", isDeleted: false },
     select: { email: true },
   });
-  if (admins.length === 0) return;
 
-  await sendContactFormEmail({
-    recipient: admins.map((a) => a.email),
+  const recipients = [
+    ...new Set([CONTACT_INBOX, ...admins.map((a) => a.email)].map((e) => e.trim().toLowerCase())),
+  ].filter(Boolean);
+
+  const { error } = await sendContactFormEmail({
+    recipient: recipients,
     name: data.name.trim(),
     email: data.email?.trim() || undefined,
     phone: data.phone.trim(),
     message: data.message.trim(),
   });
+  // Resend returns errors instead of throwing — surface them so they get logged.
+  if (error) throw new Error(`Resend: ${error.name} — ${error.message}`);
 }
 
 export async function getContacts(opts?: { unreadOnly?: boolean }) {
