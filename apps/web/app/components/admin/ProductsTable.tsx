@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2, Eye, EyeOff, Star, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Star, Pencil, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   deleteProduct,
@@ -26,6 +26,13 @@ function thumbnailUrl(product: Row): string | null {
   return product.images[0] ?? product.colorImages[0]?.imageUrls[0] ?? null;
 }
 
+const PAGE_SIZES = [10, 20, 50] as const;
+
+// lowercase + strip accents so "escarpin" matches "Escarpín"
+function normalize(value: string) {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 export function ProductsTable({ products: initial }: { products: Row[] }) {
   const t = useTranslations("Admin");
   const [products, setProducts] = useState(initial);
@@ -36,8 +43,26 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
   const [editing, setEditing] = useState<{ id: string; field: "name" | "price" } | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
+  const [page, setPage] = useState(1);
 
-  const allSelected = products.length > 0 && selected.size === products.length;
+  // Filtering runs client-side on every keystroke — all products are already loaded.
+  const filtered = useMemo(() => {
+    const q = normalize(query.trim());
+    if (!q) return products;
+    return products.filter((p) =>
+      normalize(`${p.name} ${p.slug} ${p.brandName ?? ""}`).includes(q),
+    );
+  }, [products, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // clamp — deleting the last row of the last page shouldn't leave you on an empty page
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // "select all" applies to the rows visible on the current page
+  const allSelected = pageRows.length > 0 && pageRows.every((p) => selected.has(p.id));
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -49,7 +74,14 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
   }
 
   function toggleSelectAll() {
-    setSelected(allSelected ? new Set() : new Set(products.map((p) => p.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const p of pageRows) {
+        if (allSelected) next.delete(p.id);
+        else next.add(p.id);
+      }
+      return next;
+    });
   }
 
   function startEdit(product: Row, field: "name" | "price") {
@@ -385,6 +417,38 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Search — filters instantly as you type */}
+      <div className="relative w-full sm:max-w-xs">
+        <Search
+          size={15}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)]"
+        />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
+          placeholder={t("PhSearchProducts")}
+          aria-label={t("Search")}
+          className="w-full rounded-xl border border-[var(--color-border)] bg-white py-2 pl-9 pr-9 text-sm text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-text)]/20"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setPage(1);
+            }}
+            title={t("TipClearSelection")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[var(--color-muted)] transition hover:bg-[var(--color-bg)] hover:text-[var(--color-text)]"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {error && (
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
@@ -457,6 +521,12 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
         </div>
       )}
 
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-white py-14 text-center text-sm text-[var(--color-muted)]">
+          {t("NoShoesMatch", { query: query.trim() })}
+        </div>
+      ) : (
+      <>
       {/* Desktop table — lg and up */}
       <div className="hidden overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-sm lg:block">
         <div className="overflow-x-auto">
@@ -479,7 +549,7 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {products.map((product) => {
+              {pageRows.map((product) => {
                 const thumbnail = thumbnailUrl(product);
 
                 return (
@@ -523,7 +593,7 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
 
       {/* Mobile/tablet card list — below lg */}
       <div className="divide-y divide-[var(--color-border)] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-sm lg:hidden">
-        {products.map((product) => {
+        {pageRows.map((product) => {
           const thumbnail = thumbnailUrl(product);
           return (
             <div key={product.id} className="flex gap-3 p-4">
@@ -558,6 +628,56 @@ export function ProductsTable({ products: initial }: { products: Row[] }) {
           );
         })}
       </div>
+
+      {/* Pagination */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-5 py-3 shadow-sm">
+        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+          <span>
+            {t("Showing", {
+              from: (currentPage - 1) * pageSize + 1,
+              to: Math.min(currentPage * pageSize, filtered.length),
+              total: filtered.length,
+            })}
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-xs font-semibold text-[var(--color-text)] outline-none"
+          >
+            {PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {t("PerPage", { n: s })}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setPage(currentPage - 1)}
+            className="rounded-lg border border-[var(--color-border)] bg-white p-1.5 text-[var(--color-muted)] transition hover:text-[var(--color-text)] disabled:opacity-30"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="px-2 text-xs font-semibold text-[var(--color-text)]">
+            {t("PageOf", { page: currentPage, pages: totalPages })}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(currentPage + 1)}
+            className="rounded-lg border border-[var(--color-border)] bg-white p-1.5 text-[var(--color-muted)] transition hover:text-[var(--color-text)] disabled:opacity-30"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      </>
+      )}
 
       {deletingProduct && (
         <ConfirmDialog
