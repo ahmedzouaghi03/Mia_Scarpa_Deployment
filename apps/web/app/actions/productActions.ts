@@ -123,7 +123,8 @@ export async function getPublishedProducts(filters?: {
   gender?: "men" | "women" | "enfant";
   search?: string;
   sizes?: string[];
-  color?: string;
+  /** Any of these colour names (case-insensitive). */
+  colors?: string[];
   minPrice?: number;
   maxPrice?: number;
   /** Only products with a live promotion right now — the "Promotions" nav link. */
@@ -175,18 +176,22 @@ export async function getPublishedProducts(filters?: {
         ]
       : null;
 
-    // Size / colour both filter the same `colors` relation, so they go in an
-    // AND array rather than colliding on one `colors` key.
+    // Size and colour are matched on the SAME colour variant — "red, size 40" only
+    // returns products that actually make a red pair in 40 — mirroring how
+    // getShopFacets narrows the colour list by the selected sizes.
     const facetAND: Record<string, unknown>[] = [];
     const sizes = filters?.sizes?.map((s) => s.trim()).filter(Boolean) ?? [];
-    if (sizes.length > 0) {
-      // any of the selected sizes
+    const colorNames = filters?.colors?.map((c) => c.trim()).filter(Boolean) ?? [];
+    if (sizes.length > 0 || colorNames.length > 0) {
       facetAND.push({
-        colors: { some: { sizes: { some: { size: { in: sizes } } } } },
+        colors: {
+          some: {
+            isActive: true,
+            ...(colorNames.length > 0 ? { name: { in: colorNames, ...ci } } : {}),
+            ...(sizes.length > 0 ? { sizes: { some: { size: { in: sizes } } } } : {}),
+          },
+        },
       });
-    }
-    if (filters?.color) {
-      facetAND.push({ colors: { some: { name: { equals: filters.color, ...ci } } } });
     }
 
     const priceWhere: { gte?: number; lte?: number } = {};
@@ -228,10 +233,18 @@ export type ShopFacets = {
 
 // Distinct sizes / colours and the price span across the published catalogue
 // (optionally scoped to a gender and/or to live promotions) — powers the shop
-// sidebar filters.
+// sidebar filters. Facets narrow progressively:
+//   - price span: gender / promo scope
+//   - sizes:      + selected category
+//   - colours:    + selected category + selected sizes (on the same colour variant)
+// Currently selected sizes / colours are always kept in the lists so they can be
+// unselected even when the narrower scope no longer contains them.
 export async function getShopFacets(opts?: {
   gender?: "men" | "women" | "enfant";
   promoOnly?: boolean;
+  categorySlug?: string;
+  sizes?: string[];
+  colors?: string[];
 }): Promise<ActionResult<ShopFacets>> {
   try {
     const rows = await db.product.findMany({
@@ -246,6 +259,7 @@ export async function getShopFacets(opts?: {
         promoPrice: true,
         promoStartsAt: true,
         promoEndsAt: true,
+        category: { select: { slug: true } },
         colors: {
           where: { isActive: true },
           select: { name: true, hex: true, sizes: { select: { size: true } } },
@@ -266,8 +280,14 @@ export async function getShopFacets(opts?: {
         )
       : rows;
 
+    const selectedSizes = new Set(opts?.sizes?.map((s) => s.trim()).filter(Boolean) ?? []);
+    const selectedColors = opts?.colors?.map((c) => c.trim()).filter(Boolean) ?? [];
+
     const sizeSet = new Set<string>();
     const colorMap = new Map<string, string | null>();
+    // every colour in the gender/promo scope — used to look up the hex of a selected
+    // colour that the narrower scope no longer contains
+    const allColorHex = new Map<string, string | null>();
     let min = Infinity;
     let max = 0;
 
@@ -275,12 +295,29 @@ export async function getShopFacets(opts?: {
       const price = Number(p.basePrice);
       if (price < min) min = price;
       if (price > max) max = price;
+
+      const inCategory = !opts?.categorySlug || p.category?.slug === opts.categorySlug;
+
       for (const c of p.colors) {
-        if (c.name?.trim()) colorMap.set(c.name.trim(), c.hex);
-        for (const s of c.sizes) if (s.size?.trim()) sizeSet.add(s.size.trim());
+        const colorName = c.name?.trim();
+        if (colorName) allColorHex.set(colorName.toLowerCase(), c.hex);
+        if (!inCategory) continue;
+
+        const variantSizes = c.sizes.map((s) => s.size?.trim()).filter(Boolean) as string[];
+        for (const size of variantSizes) sizeSet.add(size);
+
+        const matchesSizes =
+          selectedSizes.size === 0 || variantSizes.some((size) => selectedSizes.has(size));
+        if (colorName && matchesSizes) colorMap.set(colorName, c.hex);
       }
     }
     if (!Number.isFinite(min)) min = 0;
+
+    for (const size of selectedSizes) sizeSet.add(size);
+    for (const name of selectedColors) {
+      const alreadyListed = [...colorMap.keys()].some((k) => k.toLowerCase() === name.toLowerCase());
+      if (!alreadyListed) colorMap.set(name, allColorHex.get(name.toLowerCase()) ?? null);
+    }
 
     const sizes = [...sizeSet].sort((a, b) => {
       const na = Number(a);
