@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import type { CategoryNode } from "@/types";
 import type { ShopFacets } from "@/actions/productActions";
 import { PriceRangeSlider } from "./PriceRangeSlider";
+import { FilterSection } from "./FilterSection";
 
 type Current = {
   category?: string;
@@ -48,11 +49,31 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
   const activeSizes = current.size
     ? current.size.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
+  const activeColors = current.color
+    ? current.color.split(",").map((c) => c.trim()).filter(Boolean)
+    : [];
+  const isColorActive = (name: string) =>
+    activeColors.some((c) => c.toLowerCase() === name.toLowerCase());
 
   const priceMinValue = current.minPrice ? Number(current.minPrice) : undefined;
   const priceMaxValue = current.maxPrice ? Number(current.maxPrice) : undefined;
 
   const promoActive = current.promo === "1" || current.promo === "true";
+
+  // shown beside the collapsed section titles on mobile so the active choice stays visible
+  const activeGenderLabel =
+    current.gender === "men"
+      ? t("Men")
+      : current.gender === "women"
+        ? t("Women")
+        : current.gender === "enfant"
+          ? t("Enfant")
+          : undefined;
+  const activeCategoryName = current.category
+    ? categories
+        .flatMap((c) => [c, ...c.children])
+        .find((c) => c.slug === current.category)?.name
+    : undefined;
 
   const hasActiveFilters = Boolean(
     current.category ||
@@ -123,7 +144,7 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
         </Section>
       )}
 
-      <Section title={t("Promotions")}>
+      <FilterSection title={t("Promotions")} mobileHint={promoActive ? t("OnSaleOnly") : undefined}>
         <Link
           href={hrefWith({ promo: promoActive ? undefined : "1" })}
           scroll={false}
@@ -136,9 +157,9 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
           {t("OnSaleOnly")}
           {promoActive && <X className="h-3.5 w-3.5" />}
         </Link>
-      </Section>
+      </FilterSection>
 
-      <Section title={t("Gender")}>
+      <FilterSection title={t("Gender")} mobileHint={activeGenderLabel}>
         <div className="space-y-0.5">
           {[
             { key: undefined as string | undefined, label: t("All") },
@@ -156,9 +177,9 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
             </Link>
           ))}
         </div>
-      </Section>
+      </FilterSection>
 
-      <Section title={t("Category")}>
+      <FilterSection title={t("Category")} mobileHint={activeCategoryName}>
         <div className="space-y-0.5">
           <Link href={hrefWith({ category: undefined })} scroll={false} className={rowClass(!current.category)}>
             {t("AllCategories")}
@@ -189,21 +210,21 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
             </div>
           ))}
         </div>
-      </Section>
+      </FilterSection>
 
       {facets.priceMax > facets.priceMin && (
-        <Section title={t("Price")}>
+        <FilterSection title={t("Price")}>
           <PriceRangeSlider
             min={facets.priceMin}
             max={facets.priceMax}
             valueMin={priceMinValue}
             valueMax={priceMaxValue}
           />
-        </Section>
+        </FilterSection>
       )}
 
       {facets.sizes.length > 0 && (
-        <Section
+        <FilterSection
           title={t("Size")}
           hint={activeSizes.length > 0 ? `${activeSizes.length} ${t("Selected")}` : undefined}
         >
@@ -229,18 +250,30 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
               );
             })}
           </div>
-        </Section>
+        </FilterSection>
       )}
 
       {facets.colors.length > 0 && (
-        <Section title={t("Color")} hint={current.color || undefined}>
+        <FilterSection
+          title={t("Color")}
+          hint={
+            activeColors.length === 1
+              ? activeColors[0]
+              : activeColors.length > 1
+                ? `${activeColors.length} ${t("Selected")}`
+                : undefined
+          }
+        >
           <div className="flex flex-wrap gap-2">
             {facets.colors.map((c) => {
-              const active = current.color === c.name;
+              const active = isColorActive(c.name);
+              const next = active
+                ? activeColors.filter((name) => name.toLowerCase() !== c.name.toLowerCase())
+                : [...activeColors, c.name];
               return (
                 <Link
                   key={c.name}
-                  href={hrefWith({ color: active ? undefined : c.name })}
+                  href={hrefWith({ color: next.length ? next.join(",") : undefined })}
                   scroll={false}
                   title={c.name}
                   aria-label={c.name}
@@ -258,7 +291,7 @@ export async function ShopFilters({ categories, facets, current }: ShopFiltersPr
               );
             })}
           </div>
-        </Section>
+        </FilterSection>
       )}
     </aside>
   );
