@@ -550,6 +550,7 @@
     "PromoImageHint": "Uploaded here only — this photo is not added to the product gallery. Leave empty to use the global promo image.",
     "PromoImportPhoto": "Import photo",
     "PromoPartialSaved": "Saved. Price, promotion and SEO were updated — colours, sizes and photos were left as-is because this product already appears on an order.",
-    "SecStorePromoBadge": "🏷️ Default Promotion Image"
+    "SecStorePromoBadge": "🏷️ Default Promotion Image",
+    "NoShoesMatch": "No shoes match “{query}”."
   }
 }

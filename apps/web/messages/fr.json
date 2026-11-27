@@ -550,6 +550,7 @@
     "PromoImageHint": "Téléversée ici uniquement — cette photo n'est pas ajoutée à la galerie du produit. Laissez vide pour utiliser l'image promo globale.",
     "PromoImportPhoto": "Importer une photo",
     "PromoPartialSaved": "Enregistré. Le prix, la promotion et le SEO ont été mis à jour — les couleurs, pointures et photos n'ont pas été modifiées car ce produit figure déjà dans une commande.",
-    "SecStorePromoBadge": "🏷️ Image de promotion par défaut"
+    "SecStorePromoBadge": "🏷️ Image de promotion par défaut",
+    "NoShoesMatch": "Aucune chaussure ne correspond à « {query} »."
   }
 }
