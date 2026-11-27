@@ -120,6 +120,7 @@ export default async function ShopPage({
   const minPrice = parsePrice(params.minPrice);
   const maxPrice = parsePrice(params.maxPrice);
   const sizes = params.size ? params.size.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const colors = params.color ? params.color.split(",").map((c) => c.trim()).filter(Boolean) : [];
 
   // Only fetch the category tree(s) the sidebar will actually show — a specific
   // department when a gender filter is active, all three merged only when it isn't.
@@ -147,12 +148,12 @@ export default async function ShopPage({
       gender,
       search: params.search,
       sizes,
-      color: params.color,
+      colors,
       minPrice,
       maxPrice,
       promoOnly,
     }),
-    getShopFacets({ gender, promoOnly }),
+    getShopFacets({ gender, promoOnly, categorySlug: params.category, sizes, colors }),
     categoryTreePromise,
     getStoreSettings(),
   ]);
