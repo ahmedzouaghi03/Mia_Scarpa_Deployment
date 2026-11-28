@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { NewsletterForm } from "@/components/store/NewsletterForm";
+import { FooterDepartment } from "@/components/store/FooterDepartment";
 import { RouteProgress } from "@/components/store/RouteProgress";
 import { PromoBadgeProvider } from "@/components/store/PromoContext";
 import { getCurrentUser } from "@/lib/session";
@@ -57,8 +58,10 @@ export default async function StoreLayout({
       {children}
       <footer className="mt-24 border-t border-[var(--color-border)] bg-[var(--color-bg)]">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
-            <div>
+          {/* lg+: 12-col grid — the Shop column gets half the width so the departments
+              can sit side by side instead of stacking into one tall column */}
+          <div className="grid grid-cols-2 gap-10 sm:grid-cols-3 lg:grid-cols-12">
+            <div className="lg:col-span-6">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-text)]">
                 {tFooter("ShopHeading")}
               </p>
@@ -70,14 +73,9 @@ export default async function StoreLayout({
                 </li>
               </ul>
 
+              <div className="lg:grid lg:grid-cols-3 lg:gap-6">
               {departments.map((dept) => (
-                <div key={dept.href} className="mt-6">
-                  <Link
-                    href={dept.href}
-                    className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-text)] transition hover:text-[var(--color-muted)]"
-                  >
-                    {dept.label}
-                  </Link>
+                <FooterDepartment key={dept.href} label={dept.label} href={dept.href}>
                   {dept.tree.length > 0 && (
                     <ul className="mt-3 space-y-2">
                       {dept.tree.map((cat) => (
@@ -106,12 +104,13 @@ export default async function StoreLayout({
                       ))}
                     </ul>
                   )}
-                </div>
+                </FooterDepartment>
               ))}
+              </div>
             </div>
 
             {showAccount && (
-              <div>
+              <div className="lg:col-span-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-text)]">
                   {tFooter("AccountHeading")}
                 </p>
@@ -130,7 +129,11 @@ export default async function StoreLayout({
               </div>
             )}
 
-            <div className={`col-span-2 ${showAccount ? "sm:col-span-1" : "sm:col-span-2"}`}>
+            <div
+              className={`col-span-2 ${
+                showAccount ? "sm:col-span-1 lg:col-span-4" : "sm:col-span-2 lg:col-span-6"
+              }`}
+            >
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-text)]">
                 {tFooter("NewsletterHeading")}
               </p>
