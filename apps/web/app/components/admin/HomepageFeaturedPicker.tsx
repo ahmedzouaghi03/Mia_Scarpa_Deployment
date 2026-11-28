@@ -17,9 +17,18 @@ const MAX_PICKS = 4;
 export function HomepageFeaturedPicker({
   products,
   initialSelectedIds,
+  maxPicks = MAX_PICKS,
+  description,
+  onSave,
 }: {
   products: PickerProduct[];
   initialSelectedIds: string[];
+  /** Defaults to 4 (the general homepage featured row). */
+  maxPicks?: number;
+  /** Replaces the default help text under the counter. */
+  description?: string;
+  /** Defaults to saving the general homepage featured products. */
+  onSave?: (ids: string[]) => Promise<{ success: boolean; error?: string }>;
 }) {
   const [selected, setSelected] = useState<string[]>(
     initialSelectedIds.filter((id) => products.some((p) => p.id === id)),
@@ -39,7 +48,7 @@ export function HomepageFeaturedPicker({
     setSaved(false);
     setSelected((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= MAX_PICKS) return prev;
+      if (prev.length >= maxPicks) return prev;
       return [...prev, id];
     });
   }
@@ -47,7 +56,7 @@ export function HomepageFeaturedPicker({
   function handleSave() {
     setError("");
     startTransition(async () => {
-      const res = await saveHomepageFeaturedProducts(selected);
+      const res = await (onSave ?? saveHomepageFeaturedProducts)(selected);
       if (res.success) setSaved(true);
       else setError(res.error ?? "Failed to save");
     });
@@ -57,11 +66,11 @@ export function HomepageFeaturedPicker({
     <div className="space-y-4">
       <div>
         <p className="text-sm font-bold text-[var(--color-text)]">
-          Selected {selected.length} / {MAX_PICKS}
+          Selected {selected.length} / {maxPicks}
         </p>
         <p className="text-xs text-[var(--color-muted)]">
-          Pick up to {MAX_PICKS} products for the "image + products" row right below the hero
-          video. Leave empty to fall back to your featured products automatically.
+          {description ??
+            `Pick up to ${maxPicks} products for the "image + products" row right below the hero video. Leave empty to fall back to your featured products automatically.`}
         </p>
       </div>
 
@@ -79,7 +88,7 @@ export function HomepageFeaturedPicker({
         {filtered.map((product) => {
           const index = selected.indexOf(product.id);
           const isSelected = index !== -1;
-          const disabled = !isSelected && selected.length >= MAX_PICKS;
+          const disabled = !isSelected && selected.length >= maxPicks;
           return (
             <button
               key={product.id}
