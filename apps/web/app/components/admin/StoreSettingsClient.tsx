@@ -5,6 +5,7 @@ import { RotateCcw, Loader2, Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { StoreColors } from "@/lib/store-config";
 import type {
+  Gender,
   HeroText,
   FooterCtaText,
   CollectionText,
@@ -28,6 +29,8 @@ import { PromoBadgeUpload } from "./PromoBadgeUpload";
 import { FeaturedPhotoUpload } from "./FeaturedPhotoUpload";
 import { EditorialBlockEditor } from "./EditorialBlockEditor";
 import { HomepageFeaturedPicker } from "./HomepageFeaturedPicker";
+import { HomepageCategorySectionsEditor } from "./HomepageCategorySectionsEditor";
+import type { AdminHomepageSection } from "@/actions/homepageSectionActions";
 import { VideoUpload } from "./VideoUpload";
 import { LogoUpload } from "./LogoUpload";
 import { StorePreview } from "./StorePreview";
@@ -339,6 +342,8 @@ export function StoreSettingsClient({
   editorial2,
   allProducts,
   homepageFeaturedProductIds,
+  categorySections,
+  imageLibrary,
   deliveryFeeCents,
   contactInfo,
   media,
@@ -351,8 +356,17 @@ export function StoreSettingsClient({
   featuredOverlay: FeaturedOverlay;
   editorial1: EditorialBlock;
   editorial2: EditorialBlock;
-  allProducts: { id: string; name: string; priceCents: number; images: string[]; isPublished: boolean }[];
+  allProducts: {
+    id: string;
+    name: string;
+    priceCents: number;
+    images: string[];
+    isPublished: boolean;
+    gender: Gender;
+  }[];
   homepageFeaturedProductIds: string[];
+  categorySections: AdminHomepageSection[];
+  imageLibrary: string[];
   deliveryFeeCents: number;
   contactInfo: ContactInfo;
   media: StoreMedia;
@@ -493,6 +507,23 @@ export function StoreSettingsClient({
           The 4 products shown next to the photo above, right after the hero video.
         </p>
         <HomepageFeaturedPicker products={allProducts} initialSelectedIds={homepageFeaturedProductIds} />
+      </div>
+
+      {/* Per-department homepage sections — optional extra "photo + products" rows below the general one */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-white p-6 shadow-sm">
+        <h2 className="text-base font-bold text-[var(--color-text)]">🗂️ Homepage Department Sections</h2>
+        <p className="mb-5 mt-0.5 text-sm text-[var(--color-muted)]">
+          Extra &quot;photo + products&quot; rows shown right after the general section above — one each for Men,
+          Women and Kids, with the department name on top. Show or hide each one, reorder them, and pick its photo
+          and products. Without a photo it uses the general section photo; without products it shows the
+          department&apos;s first 4. Rows alternate sides automatically (photo left, then products left, and so on).
+        </p>
+        <HomepageCategorySectionsEditor
+          initialSections={categorySections}
+          products={allProducts}
+          imageLibrary={imageLibrary}
+          fallbackImage={featuredImageUrl ?? heroImageUrl}
+        />
       </div>
 
       {/* USP bar */}

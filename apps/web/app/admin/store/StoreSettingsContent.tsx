@@ -2,6 +2,7 @@ import { DEFAULT_COLORS } from "@/lib/store-config";
 import { getDeliveryFeeCents, getContactInfo } from "@/actions/storeConfigActions";
 import { getStoreSettings } from "@/actions/storeSettingsActions";
 import { getAdminProducts } from "@/actions/adminActions";
+import { getAdminHomepageSections } from "@/actions/homepageSectionActions";
 import { StoreSettingsClient } from "@/components/admin/StoreSettingsClient";
 import {
   DEFAULT_HERO,
@@ -14,14 +15,36 @@ import {
 } from "@/types";
 
 export async function StoreSettingsContent() {
-  const [deliveryFeeCents, contactInfo, settingsResult, productsResult] = await Promise.all([
+  const [deliveryFeeCents, contactInfo, settingsResult, productsResult, sectionsResult] = await Promise.all([
     getDeliveryFeeCents(),
     getContactInfo(),
     getStoreSettings(),
     getAdminProducts(),
+    getAdminHomepageSections(),
   ]);
   const settings = settingsResult.success ? settingsResult.data! : null;
   const allProducts = productsResult.success ? (productsResult.data ?? []) : [];
+  const categorySections = sectionsResult.success ? (sectionsResult.data ?? []) : [];
+
+  // every image already uploaded to the site — offered by "Choose from uploaded images"
+  // on the homepage department sections
+  const imageLibrary = [
+    ...new Set(
+      [
+        settings?.featuredImage,
+        settings?.heroImage,
+        settings?.editorialImage1,
+        settings?.editorialImage2,
+        settings?.shopCoverImage,
+        settings?.menCoverImage,
+        settings?.womenCoverImage,
+        settings?.enfantCoverImage,
+        settings?.contactCoverImage,
+        ...categorySections.map((s) => s.image),
+        ...allProducts.flatMap((p) => [...p.images, ...p.colorImages.flatMap((c) => c.imageUrls)]),
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  ];
 
   const hero = {
     cta1: settings?.heroCta1 ?? DEFAULT_HERO.cta1,
@@ -87,8 +110,11 @@ export async function StoreSettingsContent() {
         priceCents: p.priceCents,
         images: p.images.length > 0 ? p.images : p.colorImages.flatMap((c) => c.imageUrls),
         isPublished: p.isPublished,
+        gender: p.gender,
       }))}
       homepageFeaturedProductIds={settings?.homepageFeaturedProductIds ?? []}
+      categorySections={categorySections}
+      imageLibrary={imageLibrary}
       deliveryFeeCents={deliveryFeeCents}
       contactInfo={contactInfo}
       media={{
