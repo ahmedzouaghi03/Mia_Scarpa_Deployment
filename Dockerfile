@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM node:22-bookworm-slim
 
-# Prisma needs openssl; ca-certificates for HTTPS calls (Neon, Resend, Meta, imgbb...)
+# Prisma needs openssl; ca-certificates for HTTPS calls (Neon, Resend, Meta, UploadThing...)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
