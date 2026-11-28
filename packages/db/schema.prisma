@@ -343,7 +343,8 @@ model StoreSettings {
 
   updatedAt DateTime @updatedAt
 
-  usps StoreUsp[]
+  usps             StoreUsp[]
+  homepageSections HomepageCategorySection[]
 }
 
 model StoreUsp {
@@ -356,6 +357,27 @@ model StoreUsp {
   store   StoreSettings @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
+}
+
+// Extra "photo + products" rows on the homepage, one per department (Men / Women /
+// Kids), shown below the general featured section. Admin can add / hide / reorder
+// them from /admin/store.
+model HomepageCategorySection {
+  id         String   @id @default(cuid())
+  image      String?
+  productIds String[] @default([])
+  isEnabled  Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  gender Gender @default(MEN)
+
+  storeId String
+  store   StoreSettings @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([gender])
 }
 
 model ContactSubmission {
