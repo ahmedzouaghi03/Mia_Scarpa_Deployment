@@ -536,7 +536,7 @@
     "ErrNoColor": "Ajoutez au moins une couleur.",
     "ErrInvalidPrice": "Saisissez un prix valide.",
     "ErrGeneric": "Une erreur est survenue.",
-    "ErrImageUpload": "Échec du téléversement de l'image. Vérifiez IMGBB_API_KEY dans .env.local",
+    "ErrImageUpload": "Échec du téléversement de l'image. Veuillez réessayer (8 Mo max par image).",
     "ErrUploadFailed": "Échec du téléversement",
 
     "PromoSection": "Promotion / Solde",

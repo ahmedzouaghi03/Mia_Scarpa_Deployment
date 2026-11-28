@@ -536,7 +536,7 @@
     "ErrNoColor": "أضف لونًا واحدًا على الأقل.",
     "ErrInvalidPrice": "أدخل سعرًا صالحًا.",
     "ErrGeneric": "حدث خطأ ما.",
-    "ErrImageUpload": "فشل رفع الصورة. تحقق من IMGBB_API_KEY في .env.local",
+    "ErrImageUpload": "فشل رفع الصورة. يرجى المحاولة مرة أخرى (8 ميغابايت كحد أقصى لكل صورة).",
     "ErrUploadFailed": "فشل الرفع",
 
     "PromoSection": "عرض / تخفيض",

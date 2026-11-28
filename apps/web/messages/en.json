@@ -536,7 +536,7 @@
     "ErrNoColor": "Add at least one colour.",
     "ErrInvalidPrice": "Enter a valid price.",
     "ErrGeneric": "Something went wrong.",
-    "ErrImageUpload": "Image upload failed. Check IMGBB_API_KEY in .env.local",
+    "ErrImageUpload": "Image upload failed. Please try again (max 8MB per image).",
     "ErrUploadFailed": "Upload failed",
 
     "PromoSection": "Promotion / Sale",
