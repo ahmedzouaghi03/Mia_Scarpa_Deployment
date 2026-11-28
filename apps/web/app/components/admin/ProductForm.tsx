@@ -11,6 +11,7 @@ import { CategorySelect } from "./CategorySelect";
 import { ImagePickerModal } from "./ImagePickerModal";
 import { SeoFieldsEditor, EMPTY_SEO_FIELDS, type SeoFieldsValue } from "./SeoFieldsEditor";
 import { generateSeoFields } from "@/lib/seoAutofill";
+import { uploadFiles } from "@/uploadthing";
 import type { AdminProductDetail, CategoryNode, Gender } from "@/types";
 
 function flattenCategories(
@@ -48,13 +49,11 @@ type ColorRow = {
   sizeInput: string;
 };
 
-async function uploadToImgbb(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/upload-image", { method: "POST", body: fd });
-  const json = (await res.json()) as { url?: string; error?: string };
-  if (!json.url) throw new Error(json.error ?? "Upload failed");
-  return json.url;
+// Product / colour / promo / SEO photos all go to UploadThing ("productImage" route).
+async function uploadImage(file: File): Promise<string> {
+  const [uploaded] = await uploadFiles("productImage", { files: [file] });
+  if (!uploaded?.ufsUrl) throw new Error("Upload failed");
+  return uploaded.ufsUrl;
 }
 
 function uid() { return Math.random().toString(36).slice(2); }
@@ -363,7 +362,7 @@ export function ProductForm({
     try {
       for (const file of files) {
         try {
-          const url = await uploadToImgbb(file);
+          const url = await uploadImage(file);
           setMainImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
         } catch {
           failed = true;
@@ -384,7 +383,7 @@ export function ProductForm({
     setError("");
     try {
       // uploaded straight to the promo slot — never added to the product's photos
-      const url = await uploadToImgbb(file);
+      const url = await uploadImage(file);
       setPromoImage(url);
     } catch {
       setError(t("ErrImageUpload"));
@@ -478,7 +477,7 @@ export function ProductForm({
     try {
       for (const file of files) {
         try {
-          const url = await uploadToImgbb(file);
+          const url = await uploadImage(file);
           setColorRows((prev) =>
             prev.map((r) =>
               r.id === rowId
@@ -1064,7 +1063,7 @@ export function ProductForm({
       <SeoFieldsEditor
         value={seoFields}
         onChange={setSeoFields}
-        onUploadImage={uploadToImgbb}
+        onUploadImage={uploadImage}
         onSelectExisting={() => setPickerTarget("seo")}
         hasExistingImages={allUploadedImages.length > 0}
         onAutoFill={() =>
