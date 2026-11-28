@@ -9,6 +9,8 @@ import { getContactInfo } from "@/actions/storeConfigActions";
 import { getFeaturedProducts, getProductsByIds } from "@/actions/productActions";
 import { FeaturedCollectionGrid } from "@/components/store/FeaturedCollectionGrid";
 import { FeaturedShoes } from "@/components/store/FeaturedShoes";
+import { HomepageCategorySection } from "@/components/store/HomepageCategorySection";
+import { getHomepageSections } from "@/actions/homepageSectionActions";
 import { UspMarquee } from "@/components/store/UspMarquee";
 import { AutoPlayVideo } from "@/components/store/AutoPlayVideo";
 import { Reveal } from "@/components/ui/Reveal";
@@ -38,17 +40,23 @@ function telHref(phone: string): string | null {
 }
 
 export default async function HomePage() {
-  const [featured, settingsResult, contact, tFooter] = await Promise.all([
+  const [featured, settingsResult, contact, tFooter, tNav] = await Promise.all([
     getFeaturedProducts(),
     getStoreSettings(),
     getContactInfo(),
     getTranslations("Footer"),
+    getTranslations("Nav"),
   ]);
+  const departmentLabels = { MEN: tNav("Men"), WOMEN: tNav("Women"), ENFANT: tNav("Enfant") } as const;
   const products = featured.success ? (featured.data ?? []) : [];
   const settings = settingsResult.success ? settingsResult.data : null;
 
   const curatedIds = settings?.homepageFeaturedProductIds ?? [];
-  const curatedResult = curatedIds.length > 0 ? await getProductsByIds(curatedIds) : null;
+  // department sections without their own photo reuse the general section's photo
+  const [curatedResult, categorySections] = await Promise.all([
+    curatedIds.length > 0 ? getProductsByIds(curatedIds) : Promise.resolve(null),
+    getHomepageSections(settings?.featuredImage ?? settings?.heroImage ?? null),
+  ]);
   const homepageFeatured =
     curatedResult?.success && (curatedResult.data?.length ?? 0) > 0
       ? curatedResult.data!
@@ -180,6 +188,23 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {/* ── PER-DEPARTMENT FEATURED SECTIONS (admin-managed, optional) ───────
+          Alternate sides: the general section above is photo-left, so the next
+          one is products-left, then photo-left again, and so on. */}
+      {categorySections.map((section, i) => {
+        const position = i + (homepageFeatured.length > 0 ? 1 : 0);
+        return (
+          <HomepageCategorySection
+            key={section.id}
+            section={section}
+            reverse={position % 2 === 1}
+            title={departmentLabels[section.gender]}
+            eyebrow={featuredOverlay.label ?? ""}
+            viewAllLabel="View all"
+          />
+        );
+      })}
 
       {/* ── USP BAR — STATIC IF IT FITS, INFINITE MARQUEE IF IT DOESN'T ── */}
       <section className="overflow-hidden border-y border-[var(--color-border)] bg-white py-8">
